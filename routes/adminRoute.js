@@ -3,6 +3,7 @@ import {
   addNewUserByAdmin,
   approveSellerRequest,
   blockUserById,
+  createModerator,
   deleteUser,
   denySellerRequest,
   getAllBookings,
@@ -109,5 +110,13 @@ adminRouter.get(
 
 // get all bookings
 adminRouter.get("/all-bookings", verifyToken, verifyAdmin, getAllBookings);
+
+// Only admin can create moderator
+adminRouter.post(
+  "/create-moderator",
+  verifyToken,
+  verifyAdmin,
+  createModerator
+);
 
 export default adminRouter;

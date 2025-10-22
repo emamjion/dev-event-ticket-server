@@ -487,29 +487,6 @@ const getAllEventsForAdmin = async (req, res) => {
   }
 };
 
-// function to view all transactions - simple
-// const getAllTransactions = async (req, res) => {
-//   try {
-//     const transactions = await OrderModel.find()
-//       .populate("buyerId", "name email")
-//       .populate("sellerId", "name email")
-//       .populate("eventId", "title date location")
-//       .sort({ createdAt: -1 });
-
-//     res.status(200).json({
-//       success: true,
-//       total: transactions.length,
-//       data: transactions,
-//     });
-//   } catch (error) {
-//     res.status(500).json({
-//       success: false,
-//       message: "Failed to fetch transactions",
-//       error: error.message,
-//     });
-//   }
-// };
-
 // function to view all transactions - with pagination, search, filter and csv download
 const getAllTransactions = async (req, res) => {
   try {
@@ -608,10 +585,43 @@ const getAllBookings = async (req, res) => {
   }
 };
 
+// function to create moderator
+const createModerator = async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+
+    const existingUser = await UserModel.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: "Email already exists" });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const moderator = new UserModel({
+      name,
+      email,
+      password: hashedPassword,
+      profileImg: null,
+      role: "moderator",
+    });
+
+    await moderator.save();
+
+    res.status(201).json({
+      success: true,
+      message: "Moderator created successfully",
+      moderator,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Server error", error });
+  }
+};
+
 export {
   addNewUserByAdmin,
   approveSellerRequest,
   blockUserById,
+  createModerator,
   deleteUser,
   denySellerRequest,
   getAllBookings,
