@@ -4,16 +4,20 @@ import {
   approveSellerRequest,
   blockUserById,
   createModerator,
+  deleteModerator,
   deleteUser,
   denySellerRequest,
   getAllBookings,
   getAllEventsForAdmin,
+  getAllModerators,
   getAllSoldTickets,
   getAllTransactions,
   getAllUsers,
   getPendingSellerRequests,
+  getSingleModerator,
   monitorSellerActivity,
   unblockUserById,
+  updateModerator,
   updateUserRole,
   verifySellerPaymentInfo,
 } from "../controllers/adminController.js";
@@ -117,6 +121,21 @@ adminRouter.post(
   verifyToken,
   verifyAdmin,
   createModerator
+);
+
+adminRouter.get("/moderators", verifyToken, verifyAdmin, getAllModerators);
+adminRouter.get(
+  "/moderators/:id",
+  verifyToken,
+  verifyAdmin,
+  getSingleModerator
+);
+adminRouter.put("/moderators/:id", verifyToken, verifyAdmin, updateModerator);
+adminRouter.delete(
+  "/moderators/:id",
+  verifyToken,
+  verifyAdmin,
+  deleteModerator
 );
 
 export default adminRouter;

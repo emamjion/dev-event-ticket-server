@@ -36,6 +36,12 @@ const eventSchema = new mongoose.Schema(
       type: String,
       match: [/^\d{10,15}$/, "Please enter a valid contact number"],
     },
+    moderators: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
     email: {
       type: String,
       match: [/.+\@.+\..+/, "Please enter a valid email address"],
