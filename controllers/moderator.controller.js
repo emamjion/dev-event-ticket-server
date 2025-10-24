@@ -94,6 +94,7 @@ const getEventModerators = async (req, res) => {
     res.status(200).json({
       success: true,
       message: "All Moderators fetched successfully",
+      totalModerators: event.moderators.length,
       data: {
         eventId: event._id,
         eventName: event.name,

@@ -62,6 +62,7 @@ const orderSchema = new mongoose.Schema(
     ticketCode: {
       type: String,
       unique: true,
+      sparse: true,
     },
     isUsed: {
       type: Boolean,
@@ -69,6 +70,15 @@ const orderSchema = new mongoose.Schema(
     },
     scannedAt: {
       type: Date,
+    },
+    scannedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    orderTime: {
+      type: Date,
+      default: Date.now,
     },
   },
   {
