@@ -1,75 +1,6 @@
 import OrderModel from "../models/orderModel.js";
+import ScanLogModel from "../models/scanLog.model.js";
 import UserModel from "../models/userModel.js";
-
-/*
-const scanTicket = async (req, res) => {
-  try {
-    const { ticketCode, moderatorId } = req.body;
-
-    if (!ticketCode || !moderatorId) {
-      return res.status(400).json({
-        success: false,
-        message: "ticketCode and moderatorId are required",
-      });
-    }
-
-    // Moderator validation
-    const moderator = await UserModel.findOne({
-      _id: moderatorId,
-      role: "moderator",
-    });
-    if (!moderator) {
-      return res.status(403).json({
-        success: false,
-        message: "Unauthorized: Only moderators can scan tickets",
-      });
-    }
-
-    // Find the order using ticketCode
-    const order = await OrderModel.findOne({ ticketCode });
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: "Invalid ticket code",
-      });
-    }
-
-    // Check if already used
-    if (order.isUsed) {
-      return res.status(400).json({
-        success: false,
-        message: "This ticket has already been used",
-        scannedAt: order.scannedAt,
-      });
-    }
-
-    // ✅ Mark as used
-    order.isUsed = true;
-    order.scannedAt = new Date();
-
-    await order.save();
-
-    res.status(200).json({
-      success: true,
-      message: "Ticket scanned successfully",
-      ticketInfo: {
-        orderId: order._id,
-        buyerId: order.buyerId,
-        eventId: order.eventId,
-        scannedAt: order.scannedAt,
-        moderator: moderator.name,
-      },
-    });
-  } catch (error) {
-    console.error("Scan Error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Server error during scanning",
-      error: error.message,
-    });
-  }
-};
-*/
 
 const scanTicket = async (req, res) => {
   try {
@@ -93,43 +24,96 @@ const scanTicket = async (req, res) => {
       });
     }
 
-    const order = await OrderModel.findOne({ ticketCode });
+    const order = await OrderModel.findOne({ ticketCode })
+      .populate("buyerId", "name email")
+      .populate("eventId", "title name date time location");
+
+    // 🔴 Invalid Ticket
     if (!order) {
+      await ScanLogModel.create({
+        ticketCode,
+        moderatorId,
+        status: "invalid",
+      });
+
       return res.status(404).json({
         success: false,
+        status: "invalid",
         message: "Invalid ticket code. No matching order found.",
+        verificationResult: {
+          status: "invalid",
+          message: "No order found for this ticket code.",
+          scannedBy: moderator.name,
+          ticketCode,
+        },
       });
     }
 
-    // 🔹 If already scanned
+    // ⚠️ Already Used Ticket
     if (order.isUsed) {
+      await ScanLogModel.create({
+        ticketCode,
+        moderatorId,
+        orderId: order._id,
+        status: "used",
+      });
+
       return res.status(200).json({
         success: true,
         status: "used",
         message: "This ticket has already been used.",
-        scannedAt: order.scannedAt,
-        scannedBy: order.scannedBy,
+        verificationResult: {
+          status: "used",
+          buyer: {
+            name: order.buyerId?.name,
+            email: order.buyerId?.email,
+          },
+          event: {
+            title: order.eventId?.title || order.eventId?.name,
+            date: order.eventId?.date,
+            time: order.eventId?.time,
+            location: order.eventId?.location,
+          },
+          scanTime: order.scannedAt,
+          purchaseDate: order.createdAt,
+          scannedBy: moderator.name,
+          ticketCode: order.ticketCode,
+        },
       });
     }
 
-    // 🔹 Mark ticket as valid & used
+    // ✅ Valid Ticket (first time scan)
     order.isUsed = true;
     order.scannedAt = new Date();
     order.scannedBy = moderatorId;
-
     await order.save();
 
-    // ✅ Response
-    res.status(200).json({
+    await ScanLogModel.create({
+      ticketCode,
+      moderatorId,
+      orderId: order._id,
+      status: "valid",
+    });
+
+    return res.status(200).json({
       success: true,
       status: "valid",
-      message: "Ticket scanned successfully. Marked as used.",
-      ticket: {
-        orderId: order._id,
-        eventId: order.eventId,
-        buyerId: order.buyerId,
-        scannedAt: order.scannedAt,
-        moderator: moderator.name,
+      message: "Ticket verified successfully - entry granted.",
+      verificationResult: {
+        status: "valid",
+        buyer: {
+          name: order.buyerId?.name,
+          email: order.buyerId?.email,
+        },
+        event: {
+          title: order.eventId?.title || order.eventId?.name,
+          date: order.eventId?.date,
+          time: order.eventId?.time,
+          location: order.eventId?.location,
+        },
+        scanTime: order.scannedAt,
+        purchaseDate: order.createdAt,
+        scannedBy: moderator.name,
         ticketCode: order.ticketCode,
       },
     });
@@ -144,4 +128,52 @@ const scanTicket = async (req, res) => {
   }
 };
 
-export { scanTicket };
+const getScannedTicketsByModerator = async (req, res) => {
+  try {
+    const moderatorId = req.params.moderatorId;
+
+    const moderator = await UserModel.findOne({
+      _id: moderatorId,
+      role: "moderator",
+    });
+
+    if (!moderator) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied. Only moderators can view scanned tickets.",
+      });
+    }
+
+    const scannedTickets = await OrderModel.find({
+      isUsed: true,
+      scannedBy: moderatorId,
+    })
+      .populate("eventId", "name date time location")
+      .populate("buyerId", "name email")
+      .sort({ scannedAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: scannedTickets.length,
+      message: "Scanned tickets fetched successfully",
+      tickets: scannedTickets.map((t) => ({
+        ticketCode: t.ticketCode,
+        eventName: t.eventId?.name,
+        eventDate: t.eventId?.date,
+        location: t.eventId?.location,
+        buyerName: t.buyerId?.name,
+        buyerEmail: t.buyerId?.email,
+        scannedAt: t.scannedAt,
+      })),
+    });
+  } catch (error) {
+    console.error("Error fetching scanned tickets:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error while fetching scanned tickets.",
+      error: error.message,
+    });
+  }
+};
+
+export { getScannedTicketsByModerator, scanTicket };
