@@ -1,5 +1,66 @@
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 import EventModel from "../models/eventModel.js";
 import UserModel from "../models/userModel.js";
+
+// Moderator login
+const loginModerator = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Email and password are required.",
+      });
+    }
+
+    const moderator = await UserModel.findOne({ email, role: "moderator" });
+    if (!moderator) {
+      return res.status(404).json({
+        success: false,
+        message: "Moderator not found.",
+      });
+    }
+
+    const isMatch = await bcrypt.compare(password, moderator.password);
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid credentials.",
+      });
+    }
+
+    const token = jwt.sign(
+      {
+        id: moderator._id,
+        role: moderator.role,
+        email: moderator.email,
+      },
+      process.env.JWT_SECRET_TOKEN,
+      { expiresIn: process.env.JWT_EXPIRES_IN }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Moderator logged in successfully.",
+      token,
+      moderator: {
+        id: moderator._id,
+        name: moderator.name,
+        email: moderator.email,
+        role: moderator.role,
+      },
+    });
+  } catch (error) {
+    console.error("Moderator Login Error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error during moderator login.",
+      error: error.message,
+    });
+  }
+};
 
 // only admin can added moderator to event
 const addModeratorToEvent = async (req, res) => {
@@ -57,6 +118,11 @@ const removeModeratorFromEvent = async (req, res) => {
         .json({ success: false, message: "Event or Moderator not found" });
     }
 
+    event.moderators = event.moderators || [];
+    moderator.assignedEvents = moderator.assignedEvents || [];
+
+    console.log("Before removing:", event.moderators, moderator.assignedEvents);
+
     event.moderators = event.moderators.filter(
       (id) => id.toString() !== moderatorId
     );
@@ -72,7 +138,11 @@ const removeModeratorFromEvent = async (req, res) => {
       message: "Moderator removed from event",
     });
   } catch (error) {
-    res.status(500).json({ message: "Server error", error });
+    console.error("Error removing moderator:", error);
+    res.status(500).json({
+      message: "Server error",
+      error: error.message || error.toString(),
+    });
   }
 };
 
@@ -146,6 +216,7 @@ const updateModeratorProfile = async (req, res) => {
 export {
   addModeratorToEvent,
   getEventModerators,
+  loginModerator,
   removeModeratorFromEvent,
   updateModeratorProfile,
 };

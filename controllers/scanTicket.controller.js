@@ -143,3 +143,5 @@ const scanTicket = async (req, res) => {
     });
   }
 };
+
+export { scanTicket };
