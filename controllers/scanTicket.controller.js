@@ -28,7 +28,6 @@ const scanTicket = async (req, res) => {
       .populate("buyerId", "name email")
       .populate("eventId", "title name date time location");
 
-    // 🔴 Invalid Ticket
     if (!order) {
       await ScanLogModel.create({
         ticketCode,
@@ -49,7 +48,6 @@ const scanTicket = async (req, res) => {
       });
     }
 
-    // ⚠️ Already Used Ticket
     if (order.isUsed) {
       await ScanLogModel.create({
         ticketCode,
@@ -82,7 +80,6 @@ const scanTicket = async (req, res) => {
       });
     }
 
-    // ✅ Valid Ticket (first time scan)
     order.isUsed = true;
     order.scannedAt = new Date();
     order.scannedBy = moderatorId;

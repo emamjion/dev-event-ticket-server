@@ -1,8 +1,10 @@
 import OrderModel from "../models/orderModel.js";
 import SellerModel from "../models/sellerModel.js";
+import TicketModel from "../models/ticket.model.js";
 import UserModel from "../models/userModel.js";
 
 // Sales report controller function
+/*
 const generateSalesReport = async (req, res) => {
   try {
     const soldOrders = await OrderModel.find({
@@ -22,6 +24,56 @@ const generateSalesReport = async (req, res) => {
       orders: soldOrders,
     });
   } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to generate sales report",
+      error: error.message,
+    });
+  }
+};
+*/
+
+const generateSalesReport = async (req, res) => {
+  try {
+    const soldOrders = await OrderModel.find({
+      paymentStatus: "success",
+    }).populate("eventId", "title");
+
+    const totalRevenue = soldOrders.reduce(
+      (total, order) => total + order.totalAmount,
+      0
+    );
+
+    const ordersWithScanStatus = await Promise.all(
+      soldOrders.map(async (order) => {
+        const tickets = await TicketModel.find({ orderId: order._id });
+
+        const scanStatuses = tickets.map((t) => t.scanStatus);
+
+        return {
+          ...order.toObject(),
+          scanStatus:
+            scanStatuses.length === 0
+              ? "not_scanned"
+              : scanStatuses.includes("used")
+              ? "used"
+              : scanStatuses.includes("valid")
+              ? "valid"
+              : "not_scanned",
+          tickets,
+        };
+      })
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Sales report generated successfully",
+      totalSales: soldOrders.length,
+      totalRevenue,
+      orders: ordersWithScanStatus,
+    });
+  } catch (error) {
+    console.error("Error generating report:", error);
     res.status(500).json({
       success: false,
       message: "Failed to generate sales report",
