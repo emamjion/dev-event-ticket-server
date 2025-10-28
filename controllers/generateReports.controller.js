@@ -37,7 +37,10 @@ const generateSalesReport = async (req, res) => {
   try {
     const soldOrders = await OrderModel.find({
       paymentStatus: "success",
-    }).populate("eventId", "title");
+    })
+      .populate("eventId", "title")
+      .populate("sellerId", "name organizationName email contactNumber")
+      .populate("buyerId", "name email");
 
     const totalRevenue = soldOrders.reduce(
       (total, order) => total + order.totalAmount,
