@@ -15,6 +15,7 @@ import {
   getAllUsers,
   getPendingSellerRequests,
   getSingleModerator,
+  getSingleUser,
   monitorSellerActivity,
   unblockUserById,
   updateModerator,
@@ -35,6 +36,7 @@ const adminRouter = express.Router();
 
 // get all routes
 adminRouter.get("/users", verifyToken, verifyAdmin, getAllUsers);
+adminRouter.get("/users/:id", verifyToken, verifyAdmin, getSingleUser);
 // delete user by specific Id
 adminRouter.delete("/users/:id", verifyToken, verifyAdmin, deleteUser);
 

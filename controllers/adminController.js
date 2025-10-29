@@ -96,6 +96,7 @@ const getAllUsers = async (req, res) => {
     res.status(200).json({
       success: true,
       message: "All users fetched successfully",
+      totalUsers: users.length,
       data: users,
     });
   } catch (error) {
@@ -103,6 +104,33 @@ const getAllUsers = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to fetch users",
+      error: error.message,
+    });
+  }
+};
+
+const getSingleUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const user = await UserModel.findById(id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "User fetched successfully",
+      data: user,
+    });
+  } catch (error) {
+    console.error("Error fetching user:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch user",
       error: error.message,
     });
   }
@@ -751,6 +779,7 @@ export {
   getAllUsers,
   getPendingSellerRequests,
   getSingleModerator,
+  getSingleUser,
   monitorSellerActivity,
   unblockUserById,
   updateModerator,
