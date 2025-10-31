@@ -52,7 +52,7 @@ app.use("/api/v1/moderator", moderatorRouter);
 
 // Root route
 app.get("/", (req, res) => {
-  res.send("Server is running from Vercel!");
+  res.send("Developement Server is running from Vercel!");
 });
 
 // DON'T listen to port in Vercel
