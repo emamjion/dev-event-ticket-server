@@ -40,7 +40,7 @@ const generateSalesReport = async (req, res) => {
     })
       .populate("eventId", "title")
       .populate("sellerId", "name organizationName email contactNumber")
-      .populate("buyerId", "name email");
+      .populate("buyerId", "name email contactNumber");
 
     const totalRevenue = soldOrders.reduce(
       (total, order) => total + order.totalAmount,
