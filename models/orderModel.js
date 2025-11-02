@@ -40,7 +40,7 @@ const orderSchema = new mongoose.Schema(
       default: "success",
     },
 
-    // paymentIntentId: String,
+    
     paymentIntentId: { type: String, required: true },
     orderTime: {
       type: Date,

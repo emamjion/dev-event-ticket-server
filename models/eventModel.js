@@ -5,6 +5,7 @@ const seatSchema = new mongoose.Schema({
   row: String,
   seatNumber: Number,
   price: Number,
+  //   should be added ticketCode
   status: {
     type: String,
     enum: ["available", "reserved", "sold"],
