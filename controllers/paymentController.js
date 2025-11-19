@@ -319,22 +319,25 @@ const confirmPayment = async (req, res) => {
     const { paymentIntentId } = req.body;
 
     if (!paymentIntentId) {
-      return res
-        .status(400)
-        .json({ success: false, message: "paymentIntentId is required." });
+      return res.status(400).json({
+        success: false,
+        message: "paymentIntentId is required.",
+      });
     }
 
     const booking = await BookingModel.findOne({ paymentIntentId });
     if (!booking) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Booking not found." });
+      return res.status(404).json({
+        success: false,
+        message: "Booking not found.",
+      });
     }
 
     if (booking.isPaid) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Payment already confirmed." });
+      return res.status(400).json({
+        success: false,
+        message: "Payment already confirmed.",
+      });
     }
 
     booking.isPaid = true;
@@ -353,22 +356,38 @@ const confirmPayment = async (req, res) => {
       });
     }
 
-    const existingOrder = await OrderModel.findOne({ bookingId: booking._id });
+    const existingOrder = await OrderModel.findOne({
+      bookingId: booking._id,
+    });
+
     if (existingOrder) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Order already exists." });
-    }
-
-    let ticketCode;
-    let exists = true;
-
-    while (exists) {
-      ticketCode = generateTicketCode();
-      exists = await OrderModel.findOne({ ticketCode });
+      return res.status(400).json({
+        success: false,
+        message: "Order already exists.",
+      });
     }
 
     const event = await EventModel.findById(booking.eventId);
+
+    // ⭐ New: generate ticket code for each seat
+    const ticketCodes = [];
+
+    for (const seat of booking.seats) {
+      let code;
+      let exists = true;
+
+      while (exists) {
+        code = generateTicketCode();
+        exists = await OrderModel.findOne({ "ticketCodes.code": code });
+      }
+
+      ticketCodes.push({
+        section: seat.section,
+        row: seat.row,
+        seatNumber: seat.seatNumber,
+        code,
+      });
+    }
 
     const newOrder = new OrderModel({
       bookingId: booking._id,
@@ -381,7 +400,7 @@ const confirmPayment = async (req, res) => {
       sellerId: event?.sellerId || null,
       quantity: booking.seats.length,
       isUserVisible: true,
-      ticketCode: ticketCode,
+      ticketCodes, // ⭐ save multiple codes
     });
 
     await newOrder.save();

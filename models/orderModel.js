@@ -1,5 +1,16 @@
 import mongoose from "mongoose";
 
+const ticketCodeSchema = new mongoose.Schema({
+  seatNumber: Number,
+  section: String,
+  row: String,
+  code: {
+    type: String,
+    unique: true,
+    sparse: true,
+  },
+});
+
 const orderSchema = new mongoose.Schema(
   {
     bookingId: {
@@ -17,6 +28,7 @@ const orderSchema = new mongoose.Schema(
       ref: "Event",
       required: true,
     },
+
     seats: {
       type: [
         {
@@ -28,6 +40,9 @@ const orderSchema = new mongoose.Schema(
       ],
       required: true,
     },
+
+    ticketCodes: [ticketCodeSchema], // ⭐ New field ⭐
+
     totalAmount: { type: Number, required: true },
     paymentStatus: {
       type: String,
@@ -40,45 +55,33 @@ const orderSchema = new mongoose.Schema(
       default: "success",
     },
 
-    // paymentIntentId: String,
     paymentIntentId: { type: String, required: true },
+
     orderTime: {
       type: Date,
       default: Date.now,
     },
-    isUserVisible: {
-      type: Boolean,
-      default: true,
-    },
+
+    isUserVisible: { type: Boolean, default: true },
+
     sellerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Seller",
       required: true,
     },
+
     quantity: {
       type: Number,
       required: true,
     },
-    ticketCode: {
-      type: String,
-      unique: true,
-      sparse: true,
-    },
-    isUsed: {
-      type: Boolean,
-      default: false,
-    },
-    scannedAt: {
-      type: Date,
-    },
+
+    isUsed: { type: Boolean, default: false },
+
+    scannedAt: { type: Date },
     scannedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       default: null,
-    },
-    orderTime: {
-      type: Date,
-      default: Date.now,
     },
   },
   {
@@ -88,4 +91,5 @@ const orderSchema = new mongoose.Schema(
 
 const OrderModel =
   mongoose.models.Order || mongoose.model("Order", orderSchema);
+
 export default OrderModel;
