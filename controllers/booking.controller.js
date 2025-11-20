@@ -31,7 +31,7 @@ const bookSeats = async (req, res) => {
       return res.status(404).json({ message: "Event not found." });
     }
 
-    // Check if seats are already held in pending bookings (not expired)
+    // Check if seats are held in active (not expired) pending bookings
     const now = new Date();
     const conflictingBookings = await BookingModel.find({
       eventId,
@@ -76,7 +76,7 @@ const bookSeats = async (req, res) => {
     const totalAmount = seats.reduce((sum, seat) => sum + seat.price, 0);
     const expiryTime = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
 
-    // Create booking
+    // 🔥 Create booking (NO event soldTickets update here)
     const newBooking = new BookingModel({
       eventId,
       buyerId,
@@ -91,15 +91,7 @@ const bookSeats = async (req, res) => {
 
     await newBooking.save();
 
-    // Update Event with held seats
-    event.seats.push(...seats);
-    event.soldTickets.push(...seats);
-    event.ticketSold += seats.length;
-    event.ticketsAvailable -= seats.length;
-
-    await event.save();
-
-    // Auto cancel unpaid booking after 10 mins
+    // 🔥 Auto-cancel logic (event seats restore handled here!)
     setTimeout(async () => {
       const stillPending = await BookingModel.findById(newBooking._id);
 
@@ -115,6 +107,7 @@ const bookSeats = async (req, res) => {
         stillPending.isUserVisible = false;
         await stillPending.save();
 
+        // event seats revert only if payment not done
         const originalEvent = await EventModel.findById(eventId);
         if (originalEvent) {
           stillPending.seats.forEach((seat) => {
@@ -126,6 +119,7 @@ const bookSeats = async (req, res) => {
                   s.seatNumber === seat.seatNumber
                 )
             );
+
             originalEvent.soldTickets = originalEvent.soldTickets.filter(
               (s) =>
                 !(
@@ -138,10 +132,11 @@ const bookSeats = async (req, res) => {
 
           originalEvent.ticketSold -= stillPending.seats.length;
           originalEvent.ticketsAvailable += stillPending.seats.length;
+
           await originalEvent.save();
         }
 
-        // Hide from Orders (if exists)
+        // Hide order if exists
         await OrderModel.findOneAndUpdate(
           { bookingId: stillPending._id },
           { isUserVisible: false }

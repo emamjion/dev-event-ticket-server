@@ -21,8 +21,6 @@ const createEvent = async (req, res) => {
   try {
     const sellerId = await getSellerId(req.user);
 
-    console.log("seller id: ", sellerId);
-
     const {
       title,
       description,

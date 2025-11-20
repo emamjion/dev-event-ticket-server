@@ -1,3 +1,4 @@
+import moment from "moment-timezone";
 import BookingModel from "../models/booking.model.js";
 import CouponModel from "../models/coupon.model.js";
 import SellerModel from "../models/sellerModel.js";
@@ -15,48 +16,6 @@ const getSellerId = async (user) => {
   }
 };
 
-// create coupon - seller
-// const createCoupon = async (req, res) => {
-//   try {
-//     const userId = req.user.id;
-//     const seller = await SellerModel.findOne({ userId });
-
-//     if (!seller) {
-//       return res
-//         .status(403)
-//         .json({ success: false, message: "Unauthorized seller" });
-//     }
-
-//     const { code, discountPercentage, minPrice, startDate, endDate, eventId } =
-//       req.body;
-
-//     const newCoupon = new CouponModel({
-//       code,
-//       discountPercentage,
-//       minPrice,
-//       startDate,
-//       endDate,
-//       eventId,
-//       sellerId: seller._id,
-//       status: "approved",
-//     });
-
-//     await newCoupon.save();
-
-//     res.status(201).json({
-//       success: true,
-//       message: "Coupon created successfully",
-//       coupon: newCoupon,
-//     });
-//   } catch (error) {
-//     res.status(500).json({
-//       success: false,
-//       message: "Failed to create coupon",
-//       error: error.message,
-//     });
-//   }
-// };
-
 // create coupon - seller and admin
 const createCoupon = async (req, res) => {
   try {
@@ -70,22 +29,29 @@ const createCoupon = async (req, res) => {
       endDate,
     } = req.body;
 
-    const existing = await CouponModel.findOne({ code });
+    // Check duplicate coupon
+    const existing = await CouponModel.findOne({ code: code.toUpperCase() });
     if (existing) {
       return res
         .status(400)
         .json({ success: false, message: "Coupon code already exists" });
     }
 
+    // 🔥 Convert start & end date to Sydney timezone
+    const sydneyStart = moment.tz(startDate, "Australia/Sydney").toDate();
+    const sydneyEnd = moment.tz(endDate, "Australia/Sydney").toDate();
+
     const newCoupon = new CouponModel({
       sellerId,
       eventId,
-      code,
+      code: code.toUpperCase(),
       discountPercentage,
       minPurchaseAmount,
-      startDate,
-      endDate,
+      startDate: sydneyStart,
+      endDate: sydneyEnd,
       status: "approved",
+      isActive: true,
+      isDeleted: false,
     });
 
     await newCoupon.save();
@@ -96,50 +62,10 @@ const createCoupon = async (req, res) => {
       coupon: newCoupon,
     });
   } catch (error) {
+    console.error("Create coupon error:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
-
-// function to update coupon - seller
-// const updateCoupon = async (req, res) => {
-//   const { id } = req.params;
-//   const updates = req.body;
-
-//   try {
-//     const userId = req.user.id;
-//     const seller = await SellerModel.findOne({ userId });
-
-//     if (!seller) {
-//       return res
-//         .status(403)
-//         .json({ success: false, message: "Unauthorized seller" });
-//     }
-
-//     const coupon = await CouponModel.findById(id);
-//     if (!coupon || coupon.isDeleted) {
-//       return res
-//         .status(404)
-//         .json({ success: false, message: "Coupon not found" });
-//     }
-
-//     if (coupon.sellerId.toString() !== seller._id.toString()) {
-//       return res
-//         .status(403)
-//         .json({ success: false, message: "Unauthorized for this coupon" });
-//     }
-
-//     Object.assign(coupon, updates);
-//     await coupon.save();
-
-//     res
-//       .status(200)
-//       .json({ success: true, message: "Coupon updated", data: coupon });
-//   } catch (error) {
-//     res
-//       .status(500)
-//       .json({ success: false, message: "Update failed", error: error.message });
-//   }
-// };
 
 // update coupon - seller and admin
 const updateCoupon = async (req, res) => {
@@ -148,16 +74,36 @@ const updateCoupon = async (req, res) => {
     const couponId = req.params.id;
 
     const coupon = await CouponModel.findOne({ _id: couponId, sellerId });
-    if (!coupon)
+
+    if (!coupon) {
       return res
         .status(404)
         .json({ success: false, message: "Coupon not found" });
+    }
+
+    // Convert only if fields exist
+    if (req.body.startDate) {
+      req.body.startDate = moment
+        .tz(req.body.startDate, "Australia/Sydney")
+        .toDate();
+    }
+
+    if (req.body.endDate) {
+      req.body.endDate = moment
+        .tz(req.body.endDate, "Australia/Sydney")
+        .toDate();
+    }
+
+    if (req.body.code) {
+      req.body.code = req.body.code.toUpperCase();
+    }
 
     Object.assign(coupon, req.body);
     await coupon.save();
 
     res.status(200).json({ success: true, message: "Coupon updated", coupon });
   } catch (error) {
+    console.error("Update coupon error:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -515,25 +461,32 @@ const applyCoupon = async (req, res) => {
       bookingId,
     });
 
+    // 🕒 CURRENT TIME IN SYDNEY
+    const sydneyNow = moment().tz("Australia/Sydney").toDate();
+
+    console.log("Sydney current time:", sydneyNow);
+
     const coupon = await CouponModel.findOne({
       code: code.toUpperCase(),
       eventId,
       status: "approved",
-      startDate: { $lte: new Date() },
-      endDate: { $gte: new Date() },
+
+      // 🔥 Compare using Sydney time
+      startDate: { $lte: sydneyNow },
+      endDate: { $gte: sydneyNow },
     });
 
     if (!coupon) {
       return res.status(400).json({
         success: false,
-        message: "Invalid or expired coupon",
+        message: "Invalid or expired coupon (Sydney timezone check).",
       });
     }
 
     if (!coupon.isActive) {
       return res.status(400).json({
         success: false,
-        message: "This coupon is currently inactive",
+        message: "This coupon is currently inactive.",
       });
     }
 
@@ -547,6 +500,7 @@ const applyCoupon = async (req, res) => {
       finalPrice,
     });
 
+    // 🔥 Update booking with coupon details
     if (bookingId) {
       const booking = await BookingModel.findById(bookingId);
       if (booking) {
@@ -575,6 +529,7 @@ const applyCoupon = async (req, res) => {
       discountAmount,
       finalPrice,
       couponId: coupon._id,
+      sydneyNow,
     });
   } catch (err) {
     console.error("❌ Apply coupon error:", err);

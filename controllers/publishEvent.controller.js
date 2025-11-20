@@ -41,7 +41,6 @@ const getPublishedEvents = async (req, res) => {
         date: 1,
       })
       .populate("sellerId", "shopName email contactNumber");
-    console.log("events: ", events);
 
     res.status(200).json({
       success: true,
