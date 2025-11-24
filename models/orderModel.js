@@ -83,6 +83,15 @@ const orderSchema = new mongoose.Schema(
       ref: "User",
       default: null,
     },
+
+    recipientEmail: {
+      type: String,
+      default: null,
+    },
+    note: {
+      type: String,
+      default: "",
+    },
   },
   {
     timestamps: true,

@@ -325,7 +325,11 @@ const confirmPayment = async (req, res) => {
       });
     }
 
-    const booking = await BookingModel.findOne({ paymentIntentId });
+    // STEP 1: Find booking with buyer populated
+    let booking = await BookingModel.findOne({ paymentIntentId }).populate(
+      "buyerId"
+    );
+
     if (!booking) {
       return res.status(404).json({
         success: false,
@@ -340,26 +344,54 @@ const confirmPayment = async (req, res) => {
       });
     }
 
+    // ⭐ STEP 2: Make sure booking already has recipientEmail + note
+    // (If frontend saved it properly, it MUST be visible here)
+    console.log("Before Payment → recipientEmail:", booking.recipientEmail);
+    console.log("Before Payment → note:", booking.note);
+
+    // STEP 3: Mark paid
     booking.isPaid = true;
     booking.status = "success";
     booking.isUserVisible = true;
     await booking.save();
 
-    if (booking.recipientEmail) {
-      const pdfBuffer = await generateTicketPDF(booking);
+    // STEP 4: Reload WITH updated data
+    booking = await BookingModel.findById(booking._id).populate("buyerId");
+
+    const buyerEmail = booking.buyerId?.email || null;
+    const recipientEmail = booking.recipientEmail || null;
+    const note = booking.note || "";
+
+    console.log("Reloaded recipientEmail:", recipientEmail);
+    console.log("Reloaded buyerEmail:", buyerEmail);
+
+    // STEP 5: Generate PDF
+    const pdfBuffer = await generateTicketPDF(booking);
+
+    // STEP 6: Send to recipient
+    if (recipientEmail) {
       await sendTicketEmail({
-        to: booking.recipientEmail,
+        to: recipientEmail,
         subject: "You've received an event ticket",
-        note: booking.note,
+        note,
         pdfBuffer,
         filename: `ticket-${booking._id}.pdf`,
       });
     }
 
-    const existingOrder = await OrderModel.findOne({
-      bookingId: booking._id,
-    });
+    // STEP 7: Send to buyer
+    if (buyerEmail) {
+      await sendTicketEmail({
+        to: buyerEmail,
+        subject: "Your ticket purchase is confirmed",
+        note,
+        pdfBuffer,
+        filename: `ticket-${booking._id}.pdf`,
+      });
+    }
 
+    // STEP 8: Prevent duplicate order
+    const existingOrder = await OrderModel.findOne({ bookingId: booking._id });
     if (existingOrder) {
       return res.status(400).json({
         success: false,
@@ -369,9 +401,8 @@ const confirmPayment = async (req, res) => {
 
     const event = await EventModel.findById(booking.eventId);
 
-    // ⭐ New: generate ticket code for each seat
+    // STEP 9: Generate ticket codes
     const ticketCodes = [];
-
     for (const seat of booking.seats) {
       let code;
       let exists = true;
@@ -389,6 +420,7 @@ const confirmPayment = async (req, res) => {
       });
     }
 
+    // ⭐ STEP 10: Create ORDER + SAVE recipientEmail + note
     const newOrder = new OrderModel({
       bookingId: booking._id,
       buyerId: booking.buyerId,
@@ -400,7 +432,11 @@ const confirmPayment = async (req, res) => {
       sellerId: event?.sellerId || null,
       quantity: booking.seats.length,
       isUserVisible: true,
-      ticketCodes, // ⭐ save multiple codes
+      ticketCodes,
+
+      // ⭐ Your requested fields:
+      recipientEmail,
+      note,
     });
 
     await newOrder.save();

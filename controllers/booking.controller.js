@@ -540,28 +540,30 @@ const checkSeatsAvailability = async (req, res) => {
 const saveOptionalInfo = async (req, res) => {
   try {
     const { bookingId, recipientEmail, note } = req.body;
+
     const booking = await BookingModel.findById(bookingId);
     if (!booking) {
-      return res.status(400).json({
+      return res.status(404).json({
         success: false,
         message: "Booking not found",
       });
     }
 
-    // update optional fields
-    booking.recipientEmail = recipientEmail;
-    booking.note = note;
+    if (recipientEmail) booking.recipientEmail = recipientEmail;
+    if (note) booking.note = note;
+
     await booking.save();
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: "Info Saved Successfully",
+      booking,
     });
   } catch (error) {
-    console.log("Error in save optional error: ", error.message);
-    res.status(500).json({
+    console.log("Error in save optional info:", error);
+    return res.status(500).json({
       success: false,
-      message: "Save optional Error",
+      message: "Save optional error",
     });
   }
 };
