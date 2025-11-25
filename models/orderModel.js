@@ -41,7 +41,7 @@ const orderSchema = new mongoose.Schema(
       required: true,
     },
 
-    ticketCodes: [ticketCodeSchema], // ⭐ New field ⭐
+    ticketCodes: [ticketCodeSchema],
 
     totalAmount: { type: Number, required: true },
     paymentStatus: {
