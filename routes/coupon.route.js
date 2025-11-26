@@ -4,6 +4,7 @@ import {
   //   approveCoupon,
   createCoupon,
   deleteCoupon,
+  getAllCoupons,
   getSellerCoupons,
   permanentlyDeleteCoupon,
   restoreCoupon,
@@ -11,6 +12,7 @@ import {
   updateCoupon,
 } from "../controllers/coupon.controller.js";
 // import verifyAdmin from "../middleware/verifyAdmin.js";
+import verifyAdmin from "../middleware/verifyAdmin.js";
 import verifySeller from "../middleware/verifySeller.js";
 import verifySellerOrAdmin from "../middleware/verifySellerOrAdmin.js";
 import verifyToken from "../middleware/verifyToken.js";
@@ -59,6 +61,8 @@ couponRouter.get(
   verifySellerOrAdmin,
   getSellerCoupons
 );
+
+couponRouter.get("/all-coupons", verifyToken, verifyAdmin, getAllCoupons);
 // couponRouter.put(
 //   "/coupon-approve/:id",
 //   verifyToken,

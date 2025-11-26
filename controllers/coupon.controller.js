@@ -537,11 +537,36 @@ const applyCoupon = async (req, res) => {
   }
 };
 
+const getAllCoupons = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Only admin can view all coupons",
+      });
+    }
+
+    const coupons = await CouponModel.find({ isDeleted: false })
+      .populate("eventId", "name")
+      .populate("sellerId", "businessName");
+
+    res.status(200).json({
+      success: true,
+      total: coupons.length,
+      message: "All coupons fetched successfully",
+      coupons,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 export {
   applyCoupon,
   approveCoupon,
   createCoupon,
   deleteCoupon,
+  getAllCoupons,
   getSellerCoupons,
   permanentlyDeleteCoupon,
   restoreCoupon,
