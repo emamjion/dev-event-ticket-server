@@ -532,7 +532,7 @@ const applyCoupon = async (req, res) => {
       sydneyNow,
     });
   } catch (err) {
-    console.error("❌ Apply coupon error:", err);
+    console.error("Apply coupon error:", err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -547,8 +547,8 @@ const getAllCoupons = async (req, res) => {
     }
 
     const coupons = await CouponModel.find({ isDeleted: false })
-      .populate("eventId", "name")
-      .populate("sellerId", "businessName");
+      .populate("eventId", "title date")
+      .populate("sellerId", "name email contactNumber organizationName");
 
     res.status(200).json({
       success: true,
