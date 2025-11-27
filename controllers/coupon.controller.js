@@ -412,18 +412,25 @@ const getAllEventCouponsForAdmin = async (req, res) => {
 
     // Group by event
     const grouped = {};
+    const groupCounts = {};
 
     coupons.forEach((coupon) => {
       const eventName = coupon.eventId?.title || "Unknown Event";
 
-      if (!grouped[eventName]) grouped[eventName] = [];
+      if (!grouped[eventName]) {
+        grouped[eventName] = [];
+        groupCounts[eventName] = 0;
+      }
 
       grouped[eventName].push(coupon);
+      groupCounts[eventName] += 1;
     });
 
     res.status(200).json({
       success: true,
       message: "Event-wise coupons fetched successfully",
+      totalCoupons: coupons.length,
+      eventCounts: groupCounts,
       groupedCoupons: grouped,
     });
   } catch (error) {
@@ -436,11 +443,11 @@ export {
   createCoupon,
   deleteCoupon,
   getAllCoupons,
+  getAllEventCouponsForAdmin,
   getCouponsByEvent,
   getSellerCoupons,
   permanentlyDeleteCoupon,
   restoreCoupon,
   toggleCouponStatus,
   updateCoupon,
-  getAllEventCouponsForAdmin
 };
