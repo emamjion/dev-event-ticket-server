@@ -10,7 +10,7 @@ const getSellerId = async (user) => {
     if (!seller) throw new Error("Seller not found");
     return seller._id;
   } else if (user.role === "admin") {
-    return user.id;
+    return null; // admin is not a seller
   } else {
     throw new Error("Unauthorized");
   }
@@ -19,7 +19,22 @@ const getSellerId = async (user) => {
 // create coupon - seller and admin
 const createCoupon = async (req, res) => {
   try {
-    const sellerId = await getSellerId(req.user);
+    let sellerId;
+
+    if (req.user.role === "seller") {
+      sellerId = await getSellerId(req.user);
+    } else {
+      // admin must send sellerId manually in body
+      sellerId = req.body.sellerId;
+    }
+
+    if (!sellerId) {
+      return res.status(400).json({
+        success: false,
+        message: "sellerId is required (admin must select seller)",
+      });
+    }
+
     const {
       eventId,
       code,
@@ -37,7 +52,6 @@ const createCoupon = async (req, res) => {
         .json({ success: false, message: "Coupon code already exists" });
     }
 
-    // 🔥 Convert start & end date to Sydney timezone
     const sydneyStart = moment.tz(startDate, "Australia/Sydney").toDate();
     const sydneyEnd = moment.tz(endDate, "Australia/Sydney").toDate();
 
@@ -70,18 +84,21 @@ const createCoupon = async (req, res) => {
 // update coupon - seller and admin
 const updateCoupon = async (req, res) => {
   try {
-    const sellerId = await getSellerId(req.user);
     const couponId = req.params.id;
 
-    const coupon = await CouponModel.findOne({ _id: couponId, sellerId });
+    let query = { _id: couponId };
+    if (req.user.role === "seller") {
+      const sellerId = await getSellerId(req.user);
+      query.sellerId = sellerId;
+    }
 
+    const coupon = await CouponModel.findOne(query);
     if (!coupon) {
       return res
         .status(404)
         .json({ success: false, message: "Coupon not found" });
     }
 
-    // Convert only if fields exist
     if (req.body.startDate) {
       req.body.startDate = moment
         .tz(req.body.startDate, "Australia/Sydney")
@@ -108,58 +125,19 @@ const updateCoupon = async (req, res) => {
   }
 };
 
-// function to delete coupon - seller
-// const deleteCoupon = async (req, res) => {
-//   try {
-//     const userId = req.user.id;
-//     const seller = await SellerModel.findOne({ userId });
-
-//     if (!seller) {
-//       return res
-//         .status(403)
-//         .json({ success: false, message: "Unauthorized seller" });
-//     }
-
-//     const { id } = req.params;
-//     const coupon = await CouponModel.findById(id);
-
-//     if (!coupon || coupon.isDeleted) {
-//       return res
-//         .status(404)
-//         .json({ success: false, message: "Coupon not found" });
-//     }
-
-//     if (coupon.sellerId.toString() !== seller._id.toString()) {
-//       return res.status(403).json({
-//         success: false,
-//         message: "Unauthorized seller for this coupon",
-//       });
-//     }
-
-//     coupon.isDeleted = true;
-//     await coupon.save();
-
-//     res.status(200).json({
-//       success: true,
-//       message: "Coupon softly deleted successfully",
-//     });
-//   } catch (error) {
-//     res.status(500).json({
-//       success: false,
-//       message: "Failed to delete coupon",
-//       error: error.message,
-//     });
-//   }
-// };
-
-// softly deleted coupon - seller and admin
+// softly delete coupon - seller & admin
 const deleteCoupon = async (req, res) => {
   try {
-    const sellerId = await getSellerId(req.user);
     const couponId = req.params.id;
 
+    let query = { _id: couponId };
+    if (req.user.role === "seller") {
+      const sellerId = await getSellerId(req.user);
+      query.sellerId = sellerId;
+    }
+
     const coupon = await CouponModel.findOneAndUpdate(
-      { _id: couponId, sellerId },
+      query,
       { isDeleted: true },
       { new: true }
     );
@@ -177,59 +155,18 @@ const deleteCoupon = async (req, res) => {
   }
 };
 
-// function to permanent delete coupon - seller
-// const permanentDeleteCoupon = async (req, res) => {
-//   try {
-//     const userId = req.user.id;
-//     const seller = await SellerModel.findOne({ userId });
-
-//     if (!seller) {
-//       return res
-//         .status(403)
-//         .json({ success: false, message: "Unauthorized seller" });
-//     }
-
-//     const { id } = req.params;
-//     const coupon = await CouponModel.findById(id);
-
-//     if (!coupon) {
-//       return res
-//         .status(404)
-//         .json({ success: false, message: "Coupon not found" });
-//     }
-
-//     if (coupon.sellerId.toString() !== seller._id.toString()) {
-//       return res.status(403).json({
-//         success: false,
-//         message: "Unauthorized seller for this coupon",
-//       });
-//     }
-
-//     await CouponModel.findByIdAndDelete(id);
-
-//     res.status(200).json({
-//       success: true,
-//       message: "Coupon deleted successfully",
-//     });
-//   } catch (error) {
-//     res.status(500).json({
-//       success: false,
-//       message: "Failed to delete coupon",
-//       error: error.message,
-//     });
-//   }
-// };
-
-// parmanently deleted coupon - seller and admin
+// permanently delete coupon - seller & admin
 const permanentlyDeleteCoupon = async (req, res) => {
   try {
-    const sellerId = await getSellerId(req.user);
     const couponId = req.params.id;
 
-    const coupon = await CouponModel.findOneAndDelete({
-      _id: couponId,
-      sellerId,
-    });
+    let query = { _id: couponId };
+    if (req.user.role === "seller") {
+      const sellerId = await getSellerId(req.user);
+      query.sellerId = sellerId;
+    }
+
+    const coupon = await CouponModel.findOneAndDelete(query);
 
     if (!coupon) {
       return res.status(404).json({
@@ -247,20 +184,12 @@ const permanentlyDeleteCoupon = async (req, res) => {
   }
 };
 
-// function to restore coupon
+// restore coupon - seller & admin
 const restoreCoupon = async (req, res) => {
   try {
-    const userId = req.user.id;
-    const seller = await SellerModel.findOne({ userId });
+    const couponId = req.params.id;
 
-    if (!seller) {
-      return res
-        .status(403)
-        .json({ success: false, message: "Unauthorized seller" });
-    }
-
-    const { id } = req.params;
-    const coupon = await CouponModel.findById(id);
+    const coupon = await CouponModel.findById(couponId);
 
     if (!coupon || !coupon.isDeleted) {
       return res.status(404).json({
@@ -269,11 +198,14 @@ const restoreCoupon = async (req, res) => {
       });
     }
 
-    if (coupon.sellerId.toString() !== seller._id.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: "Unauthorized seller for this coupon",
-      });
+    if (req.user.role === "seller") {
+      const sellerId = await getSellerId(req.user);
+      if (coupon.sellerId.toString() !== sellerId.toString()) {
+        return res.status(403).json({
+          success: false,
+          message: "Unauthorized seller for this coupon",
+        });
+      }
     }
 
     coupon.isDeleted = false;
@@ -293,20 +225,12 @@ const restoreCoupon = async (req, res) => {
   }
 };
 
-// function to toggle coupon status
+// toggle coupon status (active/inactive)
 const toggleCouponStatus = async (req, res) => {
   try {
-    const userId = req.user.id;
-    const seller = await SellerModel.findOne({ userId });
+    const couponId = req.params.id;
 
-    if (!seller) {
-      return res
-        .status(403)
-        .json({ success: false, message: "Unauthorized seller" });
-    }
-
-    const { id } = req.params;
-    const coupon = await CouponModel.findById(id);
+    const coupon = await CouponModel.findById(couponId);
 
     if (!coupon || coupon.isDeleted) {
       return res
@@ -314,10 +238,13 @@ const toggleCouponStatus = async (req, res) => {
         .json({ success: false, message: "Coupon not found" });
     }
 
-    if (coupon.sellerId.toString() !== seller._id.toString()) {
-      return res
-        .status(403)
-        .json({ success: false, message: "Unauthorized access to coupon" });
+    if (req.user.role === "seller") {
+      const sellerId = await getSellerId(req.user);
+      if (coupon.sellerId.toString() !== sellerId.toString()) {
+        return res
+          .status(403)
+          .json({ success: false, message: "Unauthorized access" });
+      }
     }
 
     coupon.isActive = !coupon.isActive;
@@ -337,36 +264,18 @@ const toggleCouponStatus = async (req, res) => {
   }
 };
 
-// function to get seller coupons - seller
-// const getSellerCoupons = async (req, res) => {
-//   try {
-//     const userId = req.user.id;
-//     const seller = await SellerModel.findOne({ userId });
-//     if (!seller) {
-//       return res
-//         .status(404)
-//         .json({ success: false, message: "Seller not found" });
-//     }
-//     const coupons = await CouponModel.find({ sellerId: seller._id });
-//     res.status(200).json({
-//       success: true,
-//       message: "Coupon fetched successfully",
-//       totalCoupons: coupons.length,
-//       coupons,
-//     });
-//   } catch (err) {
-//     res.status(500).json({ success: false, message: err.message });
-//   }
-// };
-
-// get coupons - seller and admin
+// get coupons - seller & admin
 const getSellerCoupons = async (req, res) => {
   try {
-    const sellerId = await getSellerId(req.user);
-    const coupons = await CouponModel.find({
-      sellerId,
-      isDeleted: false,
-    }).populate("eventId", "name");
+    let query = { isDeleted: false };
+
+    if (req.user.role === "seller") {
+      const sellerId = await getSellerId(req.user);
+      query.sellerId = sellerId;
+    }
+
+    const coupons = await CouponModel.find(query).populate("eventId", "name");
+
     res.status(200).json({
       success: true,
       total: coupons.length,
@@ -378,165 +287,7 @@ const getSellerCoupons = async (req, res) => {
   }
 };
 
-// function to approve coupon
-const approveCoupon = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { status } = req.body;
-
-    const updatedCoupon = await CouponModel.findByIdAndUpdate(
-      id,
-      { status },
-      { new: true }
-    );
-
-    if (!updatedCoupon) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Coupon not found" });
-    }
-
-    res.status(200).json({
-      success: true,
-      message: `Coupon ${status}`,
-      coupon: updatedCoupon,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to update coupon status",
-      error: error.message,
-    });
-  }
-};
-
-// function to apply coupon
-// const applyCoupon = async (req, res) => {
-//   try {
-//     const { code, eventId, totalAmount } = req.body;
-
-//     const coupon = await CouponModel.findOne({
-//       code: code.toUpperCase(),
-//       eventId,
-//       status: "approved",
-//       startDate: { $lte: new Date() },
-//       endDate: { $gte: new Date() },
-//     });
-
-//     if (!coupon) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "Invalid or expired coupon",
-//       });
-//     }
-
-//     if (!coupon.isActive) {
-//       return res
-//         .status(400)
-//         .json({ success: false, message: "This coupon is currently inactive" });
-//     }
-
-//     const discountAmount = (coupon.discountPercentage / 100) * totalAmount;
-//     const finalPrice = totalAmount - discountAmount;
-
-//     res.status(200).json({
-//       success: true,
-//       message: "Coupon applied successfully",
-//       discountAmount,
-//       finalPrice,
-//       couponId: coupon._id,
-//     });
-//   } catch (err) {
-//     res.status(500).json({ success: false, message: err.message });
-//   }
-// };
-const applyCoupon = async (req, res) => {
-  try {
-    const { code, eventId, totalAmount, bookingId } = req.body;
-
-    console.log("Applying coupon:", {
-      code,
-      eventId,
-      totalAmount,
-      bookingId,
-    });
-
-    // 🕒 CURRENT TIME IN SYDNEY
-    const sydneyNow = moment().tz("Australia/Sydney").toDate();
-
-    console.log("Sydney current time:", sydneyNow);
-
-    const coupon = await CouponModel.findOne({
-      code: code.toUpperCase(),
-      eventId,
-      status: "approved",
-
-      // 🔥 Compare using Sydney time
-      startDate: { $lte: sydneyNow },
-      endDate: { $gte: sydneyNow },
-    });
-
-    if (!coupon) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid or expired coupon (Sydney timezone check).",
-      });
-    }
-
-    if (!coupon.isActive) {
-      return res.status(400).json({
-        success: false,
-        message: "This coupon is currently inactive.",
-      });
-    }
-
-    const discountAmount = (coupon.discountPercentage / 100) * totalAmount;
-    const finalPrice = Math.max(0, totalAmount - discountAmount);
-
-    console.log("💰 Coupon calculation:", {
-      originalAmount: totalAmount,
-      discountPercentage: coupon.discountPercentage,
-      discountAmount,
-      finalPrice,
-    });
-
-    // 🔥 Update booking with coupon details
-    if (bookingId) {
-      const booking = await BookingModel.findById(bookingId);
-      if (booking) {
-        booking.couponCode = code.toUpperCase();
-        booking.couponId = coupon._id;
-        booking.discountAmount = discountAmount;
-        booking.finalAmount = finalPrice;
-        booking.originalAmount = totalAmount;
-        await booking.save();
-
-        console.log("Booking updated with coupon details:", {
-          bookingId,
-          couponCode: booking.couponCode,
-          originalAmount: booking.originalAmount,
-          discountAmount: booking.discountAmount,
-          finalAmount: booking.finalAmount,
-        });
-      } else {
-        console.warn("Booking not found for ID:", bookingId);
-      }
-    }
-
-    res.status(200).json({
-      success: true,
-      message: "Coupon applied successfully",
-      discountAmount,
-      finalPrice,
-      couponId: coupon._id,
-      sydneyNow,
-    });
-  } catch (err) {
-    console.error("Apply coupon error:", err);
-    res.status(500).json({ success: false, message: err.message });
-  }
-};
-
+// admin only: get all coupons
 const getAllCoupons = async (req, res) => {
   try {
     if (req.user.role !== "admin") {
@@ -561,9 +312,65 @@ const getAllCoupons = async (req, res) => {
   }
 };
 
+// apply coupon
+const applyCoupon = async (req, res) => {
+  try {
+    const { code, eventId, totalAmount, bookingId } = req.body;
+
+    const sydneyNow = moment().tz("Australia/Sydney").toDate();
+
+    const coupon = await CouponModel.findOne({
+      code: code.toUpperCase(),
+      eventId,
+      status: "approved",
+      startDate: { $lte: sydneyNow },
+      endDate: { $gte: sydneyNow },
+    });
+
+    if (!coupon) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or expired coupon (Sydney timezone check).",
+      });
+    }
+
+    if (!coupon.isActive) {
+      return res.status(400).json({
+        success: false,
+        message: "This coupon is currently inactive.",
+      });
+    }
+
+    const discountAmount = (coupon.discountPercentage / 100) * totalAmount;
+    const finalPrice = Math.max(0, totalAmount - discountAmount);
+
+    if (bookingId) {
+      const booking = await BookingModel.findById(bookingId);
+      if (booking) {
+        booking.couponCode = code.toUpperCase();
+        booking.couponId = coupon._id;
+        booking.discountAmount = discountAmount;
+        booking.finalAmount = finalPrice;
+        booking.originalAmount = totalAmount;
+        await booking.save();
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Coupon applied successfully",
+      discountAmount,
+      finalPrice,
+      couponId: coupon._id,
+      sydneyNow,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 export {
   applyCoupon,
-  approveCoupon,
   createCoupon,
   deleteCoupon,
   getAllCoupons,
