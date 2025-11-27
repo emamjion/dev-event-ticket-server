@@ -1,5 +1,6 @@
 import { v2 as cloudinary } from "cloudinary";
 import fs from "fs";
+import moment from "moment-timezone";
 import EventModel from "../models/eventModel.js";
 import SellerModel from "../models/sellerModel.js";
 
@@ -16,69 +17,42 @@ const getSellerId = async (user) => {
   }
 };
 
-// Create Event
+// ==============================
+//       CREATE EVENT
+// ==============================
 const createEvent = async (req, res) => {
   try {
-    const sellerId = await getSellerId(req.user);
-
     const {
       title,
       description,
-      date,
-      time,
-      location,
-      contactNumber,
-      email,
-      // priceRange,
+      venue,
+      startDate,
+      endDate,
+      banner,
       price,
+      sellerId,
     } = req.body;
 
-    // const parsedPriceRange =
-    //   typeof priceRange === "string" ? JSON.parse(priceRange) : priceRange;
-
-    const image = req.file;
-    if (!image) {
+    if (!startDate || !endDate) {
       return res.status(400).json({
         success: false,
-        message: "Image file is required",
+        message: "Start date & End date are required",
       });
     }
 
-    const base64Image = `data:${image.mimetype};base64,${image.buffer.toString(
-      "base64"
-    )}`;
-    const result = await cloudinary.uploader.upload(base64Image, {
-      folder: "event-images",
-    });
-    const imageUrl = result.secure_url;
-
-    const existingEvent = await EventModel.findOne({
-      title,
-      date,
-      sellerId,
-    });
-
-    if (existingEvent) {
-      return res.status(400).json({
-        success: false,
-        message: "You have already created this event.",
-      });
-    }
+    // Sydney timezone conversion (same as coupon logic)
+    const sydneyStart = moment.tz(startDate, "Australia/Sydney").toDate();
+    const sydneyEnd = moment.tz(endDate, "Australia/Sydney").toDate();
 
     const newEvent = new EventModel({
       title,
       description,
-      date,
-      time,
-      location,
-      image: imageUrl,
-      contactNumber,
-      email,
-      // priceRange: parsedPriceRange,
-      price: Number(price),
-      isPublished: false,
-      ticketSold: 0,
+      venue,
+      banner,
+      price,
       sellerId,
+      startDate: sydneyStart,
+      endDate: sydneyEnd,
     });
 
     await newEvent.save();
@@ -89,24 +63,14 @@ const createEvent = async (req, res) => {
       event: newEvent,
     });
   } catch (error) {
+    console.error("Create Event Error:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// Get Seller/Admin Events
-/*
-const getSellerEvents = async (req, res) => {
-  try {
-    const sellerId = await getSellerId(req.user);
-
-    const events = await EventModel.find({ sellerId });
-    res.status(200).json({ success: true, totalEvents: events.length, events });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-*/
-
+// ==============================
+//        GET EVENTS
+// ==============================
 const getSellerEvents = async (req, res) => {
   try {
     let query = {};
@@ -120,7 +84,9 @@ const getSellerEvents = async (req, res) => {
       query.sellerId = req.query.sellerId;
     }
 
-    const events = await EventModel.find(query).select("title date location");
+    const events = await EventModel.find(query).select(
+      "title startDate endDate venue"
+    );
 
     res.status(200).json({
       success: true,
@@ -132,6 +98,9 @@ const getSellerEvents = async (req, res) => {
   }
 };
 
+// ==============================
+//        UPDATE EVENT
+// ==============================
 const updateEvent = async (req, res) => {
   try {
     const user = req.user;
@@ -145,6 +114,7 @@ const updateEvent = async (req, res) => {
     }
 
     let event;
+
     if (user.role === "admin") {
       event = await EventModel.findById(eventId);
     } else if (user.role === "seller") {
@@ -159,24 +129,28 @@ const updateEvent = async (req, res) => {
       });
     }
 
+    // If banner image updated
     if (req.file) {
       const result = await cloudinary.uploader.upload(req.file.path);
-      req.body.image = result.secure_url;
+      req.body.banner = result.secure_url;
 
       fs.unlinkSync(req.file.path);
     }
 
-    if (req.body.priceRange && typeof req.body.priceRange === "string") {
-      try {
-        req.body.priceRange = JSON.parse(req.body.priceRange);
-      } catch (err) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid priceRange format. Must be a valid JSON object.",
-        });
-      }
+    // Sydney timezone update (same logic as coupon)
+    if (req.body.startDate) {
+      req.body.startDate = moment
+        .tz(req.body.startDate, "Australia/Sydney")
+        .toDate();
     }
 
+    if (req.body.endDate) {
+      req.body.endDate = moment
+        .tz(req.body.endDate, "Australia/Sydney")
+        .toDate();
+    }
+
+    // Merge updates
     Object.assign(event, req.body);
     await event.save();
 
@@ -194,34 +168,9 @@ const updateEvent = async (req, res) => {
   }
 };
 
-// Delete Event - seller
-// const deleteEvent = async (req, res) => {
-//   try {
-//     const sellerId = await getSellerId(req.user);
-//     const eventId = req.params.id;
-
-//     const event = await EventModel.findOneAndDelete({
-//       _id: eventId,
-//       sellerId,
-//     });
-
-//     if (!event) {
-//       return res.status(404).json({
-//         success: false,
-//         message: "Event not found or unauthorized",
-//       });
-//     }
-
-//     res.status(200).json({
-//       success: true,
-//       message: "Event deleted successfully",
-//     });
-//   } catch (error) {
-//     res.status(500).json({ success: false, message: error.message });
-//   }
-// };
-
-// delete event - seller and admin
+// ==============================
+//        DELETE EVENT
+// ==============================
 const deleteEvent = async (req, res) => {
   try {
     const user = req.user;
