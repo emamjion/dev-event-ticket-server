@@ -369,11 +369,38 @@ const applyCoupon = async (req, res) => {
   }
 };
 
+// Event based coupon list
+const getCouponsByEvent = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+
+    let query = { eventId, isDeleted: false };
+
+    if (req.user.role === "seller") {
+      const sellerId = await getSellerId(req.user);
+      query.sellerId = sellerId;
+    }
+
+    const coupons = await CouponModel.find(query)
+      .populate("eventId", "title date")
+      .populate("sellerId", "name email");
+
+    res.status(200).json({
+      success: true,
+      total: coupons.length,
+      coupons,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 export {
   applyCoupon,
   createCoupon,
   deleteCoupon,
   getAllCoupons,
+  getCouponsByEvent,
   getSellerCoupons,
   permanentlyDeleteCoupon,
   restoreCoupon,

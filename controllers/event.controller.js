@@ -94,12 +94,39 @@ const createEvent = async (req, res) => {
 };
 
 // Get Seller/Admin Events
+/*
 const getSellerEvents = async (req, res) => {
   try {
     const sellerId = await getSellerId(req.user);
 
     const events = await EventModel.find({ sellerId });
     res.status(200).json({ success: true, totalEvents: events.length, events });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+*/
+
+const getSellerEvents = async (req, res) => {
+  try {
+    let query = {};
+
+    if (req.user.role === "seller") {
+      const sellerId = await getSellerId(req.user);
+      query.sellerId = sellerId;
+    }
+
+    if (req.user.role === "admin" && req.query.sellerId) {
+      query.sellerId = req.query.sellerId;
+    }
+
+    const events = await EventModel.find(query).select("title date location");
+
+    res.status(200).json({
+      success: true,
+      total: events.length,
+      events,
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
