@@ -395,6 +395,42 @@ const getCouponsByEvent = async (req, res) => {
   }
 };
 
+// event wise coupon
+const getAllEventCouponsForAdmin = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Only admin can access this",
+      });
+    }
+
+    // all coupons but grouped by events
+    const coupons = await CouponModel.find({ isDeleted: false })
+      .populate("eventId", "title date")
+      .populate("sellerId", "name email");
+
+    // Group by event
+    const grouped = {};
+
+    coupons.forEach((coupon) => {
+      const eventName = coupon.eventId?.title || "Unknown Event";
+
+      if (!grouped[eventName]) grouped[eventName] = [];
+
+      grouped[eventName].push(coupon);
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Event-wise coupons fetched successfully",
+      groupedCoupons: grouped,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 export {
   applyCoupon,
   createCoupon,
@@ -406,4 +442,5 @@ export {
   restoreCoupon,
   toggleCouponStatus,
   updateCoupon,
+  getAllEventCouponsForAdmin
 };

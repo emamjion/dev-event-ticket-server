@@ -5,6 +5,7 @@ import {
   createCoupon,
   deleteCoupon,
   getAllCoupons,
+  getAllEventCouponsForAdmin,
   getCouponsByEvent,
   getSellerCoupons,
   permanentlyDeleteCoupon,
@@ -65,11 +66,18 @@ couponRouter.get(
 
 couponRouter.get("/all-coupons", verifyToken, verifyAdmin, getAllCoupons);
 couponRouter.get(
+  "/events/all",
+  verifyToken,
+  verifyAdmin,
+  getAllEventCouponsForAdmin
+);
+couponRouter.get(
   "/event/:eventId",
   verifyToken,
   verifyAdmin,
   getCouponsByEvent
 );
+
 // couponRouter.put(
 //   "/coupon-approve/:id",
 //   verifyToken,
