@@ -1,10 +1,15 @@
 import { v2 as cloudinary } from "cloudinary";
-import fs from "fs";
 import moment from "moment-timezone";
 import EventModel from "../models/eventModel.js";
 import SellerModel from "../models/sellerModel.js";
 
-// Helper to get sellerId based on role
+// Sydney timezone converter
+const convertToSydneyTime = (date, time) => {
+  const combined = `${date} ${time}`;
+  return moment.tz(combined, "YYYY-MM-DD HH:mm", "Australia/Sydney").toDate();
+};
+
+// Get Seller ID
 const getSellerId = async (user) => {
   if (user.role === "seller") {
     const seller = await SellerModel.findOne({ userId: user.id });
@@ -17,42 +22,69 @@ const getSellerId = async (user) => {
   }
 };
 
-// ==============================
-//       CREATE EVENT
-// ==============================
+// ========================= Create Event =========================
 const createEvent = async (req, res) => {
   try {
+    const sellerId = await getSellerId(req.user);
+
     const {
       title,
       description,
-      venue,
-      startDate,
-      endDate,
-      banner,
+      date,
+      time,
+      location,
+      contactNumber,
+      email,
       price,
-      sellerId,
     } = req.body;
 
-    if (!startDate || !endDate) {
+    if (!req.file) {
       return res.status(400).json({
         success: false,
-        message: "Start date & End date are required",
+        message: "Image file is required",
       });
     }
 
-    // Sydney timezone conversion (same as coupon logic)
-    const sydneyStart = moment.tz(startDate, "Australia/Sydney").toDate();
-    const sydneyEnd = moment.tz(endDate, "Australia/Sydney").toDate();
+    // Convert date + time → Sydney timezone
+    const sydneyDateTime = convertToSydneyTime(date, time);
+
+    // Upload image
+    const base64Image = `data:${
+      req.file.mimetype
+    };base64,${req.file.buffer.toString("base64")}`;
+
+    const result = await cloudinary.uploader.upload(base64Image, {
+      folder: "event-images",
+    });
+
+    // Check duplicate event
+    const existingEvent = await EventModel.findOne({
+      title,
+      date,
+      sellerId,
+    });
+
+    if (existingEvent) {
+      return res.status(400).json({
+        success: false,
+        message: "You have already created this event.",
+      });
+    }
 
     const newEvent = new EventModel({
       title,
       description,
-      venue,
-      banner,
-      price,
+      date,
+      time,
+      sydneyDateTime, // stored Sydney time
+      location,
+      image: result.secure_url,
+      contactNumber,
+      email,
+      price: Number(price),
+      isPublished: false,
+      ticketSold: 0,
       sellerId,
-      startDate: sydneyStart,
-      endDate: sydneyEnd,
     });
 
     await newEvent.save();
@@ -63,44 +95,23 @@ const createEvent = async (req, res) => {
       event: newEvent,
     });
   } catch (error) {
-    console.error("Create Event Error:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// ==============================
-//        GET EVENTS
-// ==============================
+// ========================= Get Events =========================
 const getSellerEvents = async (req, res) => {
   try {
-    let query = {};
+    const sellerId = await getSellerId(req.user);
 
-    if (req.user.role === "seller") {
-      const sellerId = await getSellerId(req.user);
-      query.sellerId = sellerId;
-    }
-
-    if (req.user.role === "admin" && req.query.sellerId) {
-      query.sellerId = req.query.sellerId;
-    }
-
-    const events = await EventModel.find(query).select(
-      "title startDate endDate venue"
-    );
-
-    res.status(200).json({
-      success: true,
-      total: events.length,
-      events,
-    });
+    const events = await EventModel.find({ sellerId });
+    res.status(200).json({ success: true, totalEvents: events.length, events });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// ==============================
-//        UPDATE EVENT
-// ==============================
+// ========================= Update Event =========================
 const updateEvent = async (req, res) => {
   try {
     const user = req.user;
@@ -117,7 +128,7 @@ const updateEvent = async (req, res) => {
 
     if (user.role === "admin") {
       event = await EventModel.findById(eventId);
-    } else if (user.role === "seller") {
+    } else {
       const sellerId = await getSellerId(user);
       event = await EventModel.findOne({ _id: eventId, sellerId });
     }
@@ -129,28 +140,27 @@ const updateEvent = async (req, res) => {
       });
     }
 
-    // If banner image updated
+    // If date/time updated → recalc Sydney time
+    if (req.body.date || req.body.time) {
+      const newDate = req.body.date || event.date;
+      const newTime = req.body.time || event.time;
+
+      req.body.sydneyDateTime = convertToSydneyTime(newDate, newTime);
+    }
+
+    // Update image
     if (req.file) {
-      const result = await cloudinary.uploader.upload(req.file.path);
-      req.body.banner = result.secure_url;
+      const base64Image = `data:${
+        req.file.mimetype
+      };base64,${req.file.buffer.toString("base64")}`;
 
-      fs.unlinkSync(req.file.path);
+      const uploaded = await cloudinary.uploader.upload(base64Image, {
+        folder: "event-images",
+      });
+
+      req.body.image = uploaded.secure_url;
     }
 
-    // Sydney timezone update (same logic as coupon)
-    if (req.body.startDate) {
-      req.body.startDate = moment
-        .tz(req.body.startDate, "Australia/Sydney")
-        .toDate();
-    }
-
-    if (req.body.endDate) {
-      req.body.endDate = moment
-        .tz(req.body.endDate, "Australia/Sydney")
-        .toDate();
-    }
-
-    // Merge updates
     Object.assign(event, req.body);
     await event.save();
 
@@ -160,17 +170,11 @@ const updateEvent = async (req, res) => {
       event,
     });
   } catch (error) {
-    console.error("Update Event Error:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// ==============================
-//        DELETE EVENT
-// ==============================
+// ========================= Delete Event =========================
 const deleteEvent = async (req, res) => {
   try {
     const user = req.user;
@@ -180,7 +184,7 @@ const deleteEvent = async (req, res) => {
 
     if (user.role === "admin") {
       event = await EventModel.findById(eventId);
-    } else if (user.role === "seller") {
+    } else {
       const sellerId = await getSellerId(user);
       event = await EventModel.findOne({ _id: eventId, sellerId });
     }
