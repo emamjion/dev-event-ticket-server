@@ -22,7 +22,7 @@ const getSellerId = async (user) => {
   }
 };
 
-// ========================= Create Event =========================
+
 const createEvent = async (req, res) => {
   try {
     const sellerId = await getSellerId(req.user);
@@ -45,7 +45,7 @@ const createEvent = async (req, res) => {
       });
     }
 
-    // Convert date + time → Sydney timezone
+   
     const sydneyDateTime = convertToSydneyTime(date, time);
 
     // Upload image
