@@ -100,7 +100,9 @@ const generateUserReport = async (req, res) => {
     );
     const buyerIds = [...buyerIdSet];
 
-    const buyers = await UserModel.find({ _id: { $in: buyerIds } });
+    const buyers = await UserModel.find({ _id: { $in: buyerIds } }).select(
+      "name email contactNumber"
+    );
 
     res.status(200).json({
       success: true,
