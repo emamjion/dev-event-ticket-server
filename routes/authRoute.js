@@ -38,8 +38,7 @@ authRouter.post("/send-reset-otp", sendResetOtp);
 authRouter.post("/reset-password", resetPasswordWithOtp);
 authRouter.put("/change-password", verifyToken, changePassword);
 
-// send verify otp route
-// authRouter.post("/send-verify-otp", verifyToken, sendVerifyOtp);
+
 // verify account route
 authRouter.post("/verify-account", verifyOtp);
 authRouter.post("/is-auth", verifyToken, isAuthenticated);
