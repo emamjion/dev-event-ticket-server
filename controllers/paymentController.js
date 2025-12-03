@@ -4,8 +4,8 @@ import BookingModel from "../models/booking.model.js";
 import EventModel from "../models/eventModel.js";
 import OrderModel from "../models/orderModel.js";
 import { generateTicketCode } from "../utils/generateTicketCode.js";
-import generateTicketPDF from "../utils/generateTicketPDF.js";
 import sendTicketEmail from "../utils/sendTicketEmail.js";
+import generateOrderTicketPDF from "../utils/generateOrderTicketPDF.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -325,7 +325,7 @@ const confirmPayment = async (req, res) => {
       });
     }
 
-    // STEP 1: Find booking with buyer populated
+    // STEP 1: Find booking
     let booking = await BookingModel.findOne({ paymentIntentId }).populate(
       "buyerId"
     );
@@ -344,53 +344,19 @@ const confirmPayment = async (req, res) => {
       });
     }
 
-    // ⭐ STEP 2: Make sure booking already has recipientEmail + note
-    // (If frontend saved it properly, it MUST be visible here)
-    console.log("Before Payment → recipientEmail:", booking.recipientEmail);
-    console.log("Before Payment → note:", booking.note);
-
-    // STEP 3: Mark paid
+    // STEP 2: Mark Paid
     booking.isPaid = true;
     booking.status = "success";
     booking.isUserVisible = true;
     await booking.save();
 
-    // STEP 4: Reload WITH updated data
     booking = await BookingModel.findById(booking._id).populate("buyerId");
 
     const buyerEmail = booking.buyerId?.email || null;
     const recipientEmail = booking.recipientEmail || null;
     const note = booking.note || "";
 
-    console.log("Reloaded recipientEmail:", recipientEmail);
-    console.log("Reloaded buyerEmail:", buyerEmail);
-
-    // STEP 5: Generate PDF
-    const pdfBuffer = await generateTicketPDF(booking);
-
-    // STEP 6: Send to recipient
-    if (recipientEmail) {
-      await sendTicketEmail({
-        to: recipientEmail,
-        subject: "You've received an event ticket",
-        note,
-        pdfBuffer,
-        filename: `ticket-${booking._id}.pdf`,
-      });
-    }
-
-    // STEP 7: Send to buyer
-    if (buyerEmail) {
-      await sendTicketEmail({
-        to: buyerEmail,
-        subject: "Your ticket purchase is confirmed",
-        note,
-        pdfBuffer,
-        filename: `ticket-${booking._id}.pdf`,
-      });
-    }
-
-    // STEP 8: Prevent duplicate order
+    // STEP 3: Check duplicate order
     const existingOrder = await OrderModel.findOne({ bookingId: booking._id });
     if (existingOrder) {
       return res.status(400).json({
@@ -401,7 +367,7 @@ const confirmPayment = async (req, res) => {
 
     const event = await EventModel.findById(booking.eventId);
 
-    // STEP 9: Generate ticket codes
+    // STEP 4: Generate Ticket Codes
     const ticketCodes = [];
     for (const seat of booking.seats) {
       let code;
@@ -420,7 +386,7 @@ const confirmPayment = async (req, res) => {
       });
     }
 
-    // ⭐ STEP 10: Create ORDER + SAVE recipientEmail + note
+    // STEP 5: Create Order
     const newOrder = new OrderModel({
       bookingId: booking._id,
       buyerId: booking.buyerId,
@@ -433,19 +399,47 @@ const confirmPayment = async (req, res) => {
       quantity: booking.seats.length,
       isUserVisible: true,
       ticketCodes,
-
-      // ⭐ Your requested fields:
       recipientEmail,
       note,
     });
 
     await newOrder.save();
 
+    // STEP 6: Re-fetch populated order
+    const populatedOrder = await OrderModel.findById(newOrder._id)
+      .populate("buyerId")
+      .populate("eventId");
+
+    // STEP 7: Generate PDF (Correct Data)
+    const pdfBuffer = await generateOrderTicketPDF(populatedOrder, event);
+
+    // STEP 8: Email recipient
+    if (recipientEmail) {
+      await sendTicketEmail({
+        to: recipientEmail,
+        subject: "You've received an event ticket",
+        note,
+        pdfBuffer,
+        filename: `ticket-${populatedOrder._id}.pdf`,
+      });
+    }
+
+    // STEP 9: Email buyer
+    if (buyerEmail) {
+      await sendTicketEmail({
+        to: buyerEmail,
+        subject: "Your ticket purchase is confirmed",
+        note,
+        pdfBuffer,
+        filename: `ticket-${populatedOrder._id}.pdf`,
+      });
+    }
+
     res.status(200).json({
       success: true,
       message: "Payment confirmed and order created.",
-      orderId: newOrder._id,
-      order: newOrder,
+      orderId: populatedOrder._id,
+      order: populatedOrder,
     });
   } catch (error) {
     console.error("Confirm Payment Error:", error);
