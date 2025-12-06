@@ -349,7 +349,7 @@ const approveSellerRequest = async (req, res) => {
         userId: user._id,
         name: user.name,
         email: user.email,
-        shopName: request.shopName,
+        organizationName: request.organizationName,
         bio: request.bio,
         contactNumber: request.contactNumber,
         address: request.address,
