@@ -2,6 +2,7 @@ import moment from "moment-timezone";
 import BookingModel from "../models/booking.model.js";
 import CouponModel from "../models/coupon.model.js";
 import SellerModel from "../models/sellerModel.js";
+import EventModel from "../models/eventModel.js";
 
 // helper function
 const getSellerId = async (user) => {
@@ -10,7 +11,7 @@ const getSellerId = async (user) => {
     if (!seller) throw new Error("Seller not found");
     return seller._id;
   } else if (user.role === "admin") {
-    return null; // admin is not a seller
+    return null;
   } else {
     throw new Error("Unauthorized");
   }
@@ -19,22 +20,6 @@ const getSellerId = async (user) => {
 // create coupon - seller and admin
 const createCoupon = async (req, res) => {
   try {
-    let sellerId;
-
-    if (req.user.role === "seller") {
-      sellerId = await getSellerId(req.user);
-    } else {
-      // admin must send sellerId manually in body
-      sellerId = req.body.sellerId;
-    }
-
-    if (!sellerId) {
-      return res.status(400).json({
-        success: false,
-        message: "sellerId is required (admin must select seller)",
-      });
-    }
-
     const {
       eventId,
       code,
@@ -44,12 +29,39 @@ const createCoupon = async (req, res) => {
       endDate,
     } = req.body;
 
-    // Check duplicate coupon
-    const existing = await CouponModel.findOne({ code: code.toUpperCase() });
-    if (existing) {
+    if (!eventId) {
       return res
         .status(400)
-        .json({ success: false, message: "Coupon code already exists" });
+        .json({ success: false, message: "eventId is required" });
+    }
+
+    let sellerId;
+
+    if (req.user.role === "seller") {
+      sellerId = await getSellerId(req.user);
+    } else if (req.user.role === "admin") {
+      const event = await EventModel.findById(eventId);
+      if (!event) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Event not found" });
+      }
+      sellerId = event.sellerId;
+    }
+
+    if (!sellerId) {
+      return res.status(400).json({
+        success: false,
+        message: "Unable to determine seller for the coupon",
+      });
+    }
+
+    const existing = await CouponModel.findOne({ code: code.toUpperCase() });
+    if (existing) {
+      return res.status(400).json({
+        success: false,
+        message: "Coupon code already exists",
+      });
     }
 
     const sydneyStart = moment.tz(startDate, "Australia/Sydney").toDate();

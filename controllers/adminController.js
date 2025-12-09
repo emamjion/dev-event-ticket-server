@@ -362,11 +362,9 @@ const approveSellerRequest = async (req, res) => {
       console.log("Seller profile already exists for:", user.email);
     }
 
-    // Approve the request
     request.status = "approved";
     await request.save();
 
-    // Generate JWT token
     const token = jwt.sign(
       { id: user._id, email: user.email, role: user.role },
       process.env.JWT_SECRET_TOKEN,
