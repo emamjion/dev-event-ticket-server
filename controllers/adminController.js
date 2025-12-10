@@ -614,7 +614,7 @@ const getAllBookings = async (req, res) => {
 // function to create moderator
 const createModerator = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, contactNumber } = req.body;
 
     const existingUser = await UserModel.findOne({ email });
     if (existingUser) {
@@ -626,6 +626,7 @@ const createModerator = async (req, res) => {
     const moderator = new UserModel({
       name,
       email,
+      contactNumber,
       password: hashedPassword,
       profileImg: null,
       role: "moderator",

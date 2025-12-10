@@ -4,6 +4,7 @@ import {
   cancelBooking,
   confirmPayment,
   createPayment,
+  freeConfirmPayment,
   getCancelledOrders,
   refundAndCancel,
 } from "../controllers/paymentController.js";
@@ -15,6 +16,7 @@ const paymentRouter = express.Router();
 
 paymentRouter.post("/create-payment", verifyToken, createPayment);
 paymentRouter.post("/confirm-payment", verifyToken, confirmPayment);
+paymentRouter.post("/free-confirm", verifyToken, freeConfirmPayment);
 paymentRouter.post("/booking/cancel", verifyToken, cancelBooking);
 paymentRouter.post("/refund", verifyToken, verifyAdmin, refundAndCancel);
 

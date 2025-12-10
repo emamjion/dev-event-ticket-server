@@ -3,9 +3,9 @@ import Stripe from "stripe";
 import BookingModel from "../models/booking.model.js";
 import EventModel from "../models/eventModel.js";
 import OrderModel from "../models/orderModel.js";
+import generateOrderTicketPDF from "../utils/generateOrderTicketPDF.js";
 import { generateTicketCode } from "../utils/generateTicketCode.js";
 import sendTicketEmail from "../utils/sendTicketEmail.js";
-import generateOrderTicketPDF from "../utils/generateOrderTicketPDF.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -444,6 +444,138 @@ const confirmPayment = async (req, res) => {
   } catch (error) {
     console.error("Confirm Payment Error:", error);
     res.status(500).json({ success: false, message: "Something went wrong." });
+  }
+};
+
+// function to free order confirm
+const freeConfirmPayment = async (req, res) => {
+  try {
+    const { bookingId } = req.body;
+
+    if (!bookingId) {
+      return res.status(400).json({
+        success: false,
+        message: "bookingId is required.",
+      });
+    }
+
+    // Step 1: Find booking
+    let booking = await BookingModel.findById(bookingId).populate("buyerId");
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: "Booking not found.",
+      });
+    }
+
+    // Ensure it's actually a free booking
+    if (booking.finalAmount !== 0) {
+      return res.status(400).json({
+        success: false,
+        message: "This is not a free booking.",
+      });
+    }
+
+    // Step 2: Mark booking as paid
+    booking.isPaid = true;
+    booking.status = "success";
+    booking.isUserVisible = true;
+    booking.paymentIntentId = `FREE_${booking._id}`;
+    await booking.save();
+
+    // Step 3: Prevent duplicate orders
+    const existingOrder = await OrderModel.findOne({ bookingId });
+    if (existingOrder) {
+      return res.status(400).json({
+        success: false,
+        message: "Order already exists.",
+        orderId: existingOrder._id,
+      });
+    }
+
+    const event = await EventModel.findById(booking.eventId);
+
+    // Step 4: Generate ticket codes
+    const ticketCodes = [];
+    for (const seat of booking.seats) {
+      let code;
+      let exists = true;
+
+      while (exists) {
+        code = generateTicketCode();
+        exists = await OrderModel.findOne({ "ticketCodes.code": code });
+      }
+
+      ticketCodes.push({
+        section: seat.section,
+        row: seat.row,
+        seatNumber: seat.seatNumber,
+        code,
+      });
+    }
+
+    // Step 5: Create order
+    const newOrder = new OrderModel({
+      bookingId,
+      buyerId: booking.buyerId,
+      eventId: booking.eventId,
+      seats: booking.seats,
+      totalAmount: 0,
+      paymentStatus: "success",
+      sellerId: event?.sellerId || null,
+      quantity: booking.seats.length,
+      isUserVisible: true,
+      paymentIntentId: booking.paymentIntentId, // FREE_
+      ticketCodes,
+      recipientEmail: booking.recipientEmail,
+      note: booking.note || "",
+    });
+
+    await newOrder.save();
+
+    // Step 6: Populate order for email
+    const populatedOrder = await OrderModel.findById(newOrder._id)
+      .populate("buyerId")
+      .populate("eventId");
+
+    // Step 7: Generate PDF
+    const pdfBuffer = await generateOrderTicketPDF(populatedOrder, event);
+
+    // Step 8: Email recipient
+    if (booking.recipientEmail) {
+      await sendTicketEmail({
+        to: booking.recipientEmail,
+        subject: "You've received an event ticket",
+        note: booking.note,
+        pdfBuffer,
+        filename: `ticket-${populatedOrder._id}.pdf`,
+      });
+    }
+
+    // Step 9: Email buyer
+    if (booking.buyerId?.email) {
+      await sendTicketEmail({
+        to: booking.buyerId.email,
+        subject: "Your free booking is confirmed",
+        note: booking.note,
+        pdfBuffer,
+        filename: `ticket-${populatedOrder._id}.pdf`,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Free booking confirmed successfully.",
+      orderId: newOrder._id,
+      order: populatedOrder,
+    });
+  } catch (error) {
+    console.error("Free Confirm Payment Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Something went wrong.",
+    });
   }
 };
 
@@ -998,6 +1130,7 @@ export {
   cancelBooking,
   confirmPayment,
   createPayment,
+  freeConfirmPayment,
   getCancelledOrders,
   refundAndCancel,
 };
