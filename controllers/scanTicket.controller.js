@@ -13,10 +13,12 @@ const scanTicket = async (req, res) => {
       });
     }
 
+    // Validate moderator
     const moderator = await UserModel.findOne({
       _id: moderatorId,
       role: "moderator",
     });
+
     if (!moderator) {
       return res.status(403).json({
         success: false,
@@ -24,7 +26,10 @@ const scanTicket = async (req, res) => {
       });
     }
 
-    const order = await OrderModel.findOne({ ticketCode })
+    // FIND order containing this ticketCode
+    const order = await OrderModel.findOne({
+      "ticketCodes.code": ticketCode,
+    })
       .populate("buyerId", "name email")
       .populate("eventId", "title name date time location");
 
@@ -48,7 +53,19 @@ const scanTicket = async (req, res) => {
       });
     }
 
-    if (order.isUsed) {
+    // Check which ticket seat object matched
+    const ticketObj = order.ticketCodes.find((t) => t.code === ticketCode);
+
+    if (!ticketObj) {
+      return res.status(404).json({
+        success: false,
+        status: "invalid",
+        message: "Ticket code not found inside this order.",
+      });
+    }
+
+    // Already used?
+    if (ticketObj.isUsed) {
       await ScanLogModel.create({
         ticketCode,
         moderatorId,
@@ -72,17 +89,17 @@ const scanTicket = async (req, res) => {
             time: order.eventId?.time,
             location: order.eventId?.location,
           },
-          scanTime: order.scannedAt,
-          purchaseDate: order.createdAt,
           scannedBy: moderator.name,
-          ticketCode: order.ticketCode,
+          ticketCode,
         },
       });
     }
 
-    order.isUsed = true;
-    order.scannedAt = new Date();
-    order.scannedBy = moderatorId;
+    // Mark this specific ticket as used
+    ticketObj.isUsed = true;
+    ticketObj.scannedAt = new Date();
+    ticketObj.scannedBy = moderatorId;
+
     await order.save();
 
     await ScanLogModel.create({
@@ -92,7 +109,7 @@ const scanTicket = async (req, res) => {
       status: "valid",
     });
 
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
       status: "valid",
       message: "Ticket verified successfully - entry granted.",
@@ -108,10 +125,8 @@ const scanTicket = async (req, res) => {
           time: order.eventId?.time,
           location: order.eventId?.location,
         },
-        scanTime: order.scannedAt,
-        purchaseDate: order.createdAt,
         scannedBy: moderator.name,
-        ticketCode: order.ticketCode,
+        ticketCode,
       },
     });
   } catch (error) {
@@ -141,27 +156,37 @@ const getScannedTicketsByModerator = async (req, res) => {
       });
     }
 
-    const scannedTickets = await OrderModel.find({
-      isUsed: true,
-      scannedBy: moderatorId,
+    // Find orders that have at least one scanned ticket by this moderator
+    const orders = await OrderModel.find({
+      "ticketCodes.scannedBy": moderatorId,
     })
       .populate("eventId", "name date time location")
       .populate("buyerId", "name email")
-      .sort({ scannedAt: -1 });
+      .sort({ "ticketCodes.scannedAt": -1 });
+
+    const tickets = [];
+
+    orders.forEach((order) => {
+      order.ticketCodes.forEach((t) => {
+        if (t.isUsed && t.scannedBy?.toString() === moderatorId) {
+          tickets.push({
+            ticketCode: t.code,
+            eventName: order.eventId?.name,
+            eventDate: order.eventId?.date,
+            location: order.eventId?.location,
+            buyerName: order.buyerId?.name,
+            buyerEmail: order.buyerId?.email,
+            scannedAt: t.scannedAt,
+          });
+        }
+      });
+    });
 
     res.status(200).json({
       success: true,
-      count: scannedTickets.length,
+      count: tickets.length,
       message: "Scanned tickets fetched successfully",
-      tickets: scannedTickets.map((t) => ({
-        ticketCode: t.ticketCode,
-        eventName: t.eventId?.name,
-        eventDate: t.eventId?.date,
-        location: t.eventId?.location,
-        buyerName: t.buyerId?.name,
-        buyerEmail: t.buyerId?.email,
-        scannedAt: t.scannedAt,
-      })),
+      tickets,
     });
   } catch (error) {
     console.error("Error fetching scanned tickets:", error);
