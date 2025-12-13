@@ -199,7 +199,7 @@ const getEventModerators = async (req, res) => {
 
     const event = await EventModel.findById(eventId).populate(
       "moderators",
-      "name email profileImage"
+      "name email contactNumber"
     );
 
     if (!event) {
