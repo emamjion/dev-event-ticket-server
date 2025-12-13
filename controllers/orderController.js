@@ -26,6 +26,7 @@ const getMyOrders = async (req, res) => {
       isUserVisible: true,
     })
       .populate("eventId", "title date time location")
+      .populate("buyerId", "name email contactNumber address")
       .sort({ createdAt: -1 });
 
     res.status(200).json({
@@ -57,7 +58,9 @@ const getSingleOrder = async (req, res) => {
         { paymentStatus: "success" },
         { paymentStatus: "pending", totalAmount: 0 },
       ],
-    }).populate("eventId", "title date time location");
+    })
+      .populate("eventId", "title date time location")
+      .populate("buyerId", "name email contactNumber address");
 
     if (!order) {
       return res.status(404).json({
