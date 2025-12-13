@@ -110,19 +110,16 @@ const createModeratorAndAssignToEvent = async (req, res) => {
     const { eventId } = req.params;
     const { name, email, password, contactNumber } = req.body;
 
-    // 1️⃣ Check event
     const event = await EventModel.findById(eventId);
     if (!event) {
       return res.status(404).json({ message: "Event not found" });
     }
 
-    // 2️⃣ Check existing user
     const existingUser = await UserModel.findOne({ email });
     if (existingUser) {
       return res.status(400).json({ message: "Email already exists" });
     }
 
-    // 3️⃣ Create moderator
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const moderator = await UserModel.create({
@@ -134,15 +131,20 @@ const createModeratorAndAssignToEvent = async (req, res) => {
       role: "moderator",
     });
 
-    // 4️⃣ Assign moderator to event
     event.moderators.push(moderator._id);
     await event.save();
 
-    // 5️⃣ Response
     res.status(201).json({
       success: true,
       message: "Moderator created and added to event successfully",
-      moderator,
+      moderator: {
+        _id: moderator._id,
+        name: moderator.name,
+        email: moderator.email,
+        contactNumber: moderator.contactNumber,
+        role: moderator.role,
+        createdAt: moderator.createdAt,
+      },
       event,
     });
   } catch (error) {

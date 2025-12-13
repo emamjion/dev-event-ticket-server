@@ -3,36 +3,6 @@ import SellerModel from "../models/sellerModel.js";
 import { TicketScanRecord } from "../models/ticketScanRecord.model.js";
 import UserModel from "../models/userModel.js";
 
-// Sales report controller function
-/*
-const generateSalesReport = async (req, res) => {
-  try {
-    const soldOrders = await OrderModel.find({
-      paymentStatus: "success",
-    }).populate("eventId", "title");
-
-    const totalRevenue = soldOrders.reduce(
-      (total, order) => total + order.totalAmount,
-      0
-    );
-
-    res.status(200).json({
-      success: true,
-      message: "Sales report generated successfully",
-      totalSales: soldOrders.length,
-      totalRevenue,
-      orders: soldOrders,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to generate sales report",
-      error: error.message,
-    });
-  }
-};
-*/
-
 const generateSalesReport = async (req, res) => {
   try {
     const soldOrders = await OrderModel.find({
