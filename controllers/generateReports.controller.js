@@ -1,6 +1,6 @@
 import OrderModel from "../models/orderModel.js";
 import SellerModel from "../models/sellerModel.js";
-import TicketModel from "../models/ticket.model.js";
+import { TicketScanRecord } from "../models/ticketScanRecord.model.js";
 import UserModel from "../models/userModel.js";
 
 // Sales report controller function
@@ -49,21 +49,28 @@ const generateSalesReport = async (req, res) => {
 
     const ordersWithScanStatus = await Promise.all(
       soldOrders.map(async (order) => {
-        const tickets = await TicketModel.find({ orderId: order._id });
+        const ticketCodes = order.ticketCodes?.map((t) => t.code) || [];
 
-        const scanStatuses = tickets.map((t) => t.scanStatus);
+        const scanRecords = await TicketScanRecord.find({
+          ticketCode: { $in: ticketCodes },
+        });
+
+        let scanStatus = "not_scanned";
+
+        if (scanRecords.length > 0) {
+          if (scanRecords.some((r) => r.status === "used")) {
+            scanStatus = "used";
+          } else if (scanRecords.some((r) => r.status === "valid")) {
+            scanStatus = "valid";
+          } else if (scanRecords.some((r) => r.status === "invalid")) {
+            scanStatus = "invalid";
+          }
+        }
 
         return {
           ...order.toObject(),
-          scanStatus:
-            scanStatuses.length === 0
-              ? "not_scanned"
-              : scanStatuses.includes("used")
-              ? "used"
-              : scanStatuses.includes("valid")
-              ? "valid"
-              : "not_scanned",
-          tickets,
+          scanStatus,
+          scanDetails: scanRecords,
         };
       })
     );
