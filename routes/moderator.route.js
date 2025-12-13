@@ -1,6 +1,6 @@
 import express from "express";
 import {
-  addModeratorToEvent,
+  createModeratorAndAssignToEvent,
   getEventModerators,
   loginModerator,
   removeModeratorFromEvent,
@@ -28,10 +28,10 @@ moderatorRouter.put(
 );
 
 moderatorRouter.post(
-  "/:eventId/addModerator",
+  "/:eventId/create-moderator",
   verifyToken,
   verifyAdmin,
-  addModeratorToEvent
+  createModeratorAndAssignToEvent
 );
 moderatorRouter.delete(
   "/:eventId/removeModerator",

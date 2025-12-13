@@ -62,7 +62,7 @@ const loginModerator = async (req, res) => {
   }
 };
 
-// only admin can added moderator to event
+/* only admin can added moderator to event
 const addModeratorToEvent = async (req, res) => {
   try {
     const { eventId } = req.params;
@@ -101,6 +101,53 @@ const addModeratorToEvent = async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server error", error });
+  }
+};
+*/
+
+const createModeratorAndAssignToEvent = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { name, email, password, contactNumber } = req.body;
+
+    // 1️⃣ Check event
+    const event = await EventModel.findById(eventId);
+    if (!event) {
+      return res.status(404).json({ message: "Event not found" });
+    }
+
+    // 2️⃣ Check existing user
+    const existingUser = await UserModel.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: "Email already exists" });
+    }
+
+    // 3️⃣ Create moderator
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const moderator = await UserModel.create({
+      name,
+      email,
+      contactNumber,
+      password: hashedPassword,
+      profileImg: null,
+      role: "moderator",
+    });
+
+    // 4️⃣ Assign moderator to event
+    event.moderators.push(moderator._id);
+    await event.save();
+
+    // 5️⃣ Response
+    res.status(201).json({
+      success: true,
+      message: "Moderator created and added to event successfully",
+      moderator,
+      event,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Server error", error });
   }
 };
 
@@ -214,7 +261,7 @@ const updateModeratorProfile = async (req, res) => {
 };
 
 export {
-  addModeratorToEvent,
+  createModeratorAndAssignToEvent,
   getEventModerators,
   loginModerator,
   removeModeratorFromEvent,
