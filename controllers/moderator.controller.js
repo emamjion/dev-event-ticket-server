@@ -38,7 +38,7 @@ const loginModerator = async (req, res) => {
         email: moderator.email,
       },
       process.env.JWT_SECRET_SCANNER,
-      { expiresIn: process.env.JWT_EXPIRES_IN }
+      { expiresIn: process.env.JWT_EXPIRES_IN_SCANNER }
     );
 
     res.status(200).json({

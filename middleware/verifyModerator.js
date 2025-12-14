@@ -1,3 +1,6 @@
+import jwt from "jsonwebtoken";
+import UserModel from "../models/userModel.js";
+
 const verifyModerator = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
@@ -6,7 +9,7 @@ const verifyModerator = async (req, res, next) => {
     }
 
     const token = authHeader.split(" ")[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET_TOKEN);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET_SCANNER);
 
     if (decoded.role !== "moderator") {
       return res.status(403).json({
@@ -22,6 +25,7 @@ const verifyModerator = async (req, res, next) => {
     }
 
     req.user = user;
+
     next();
   } catch (error) {
     res.status(401).json({

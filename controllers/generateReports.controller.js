@@ -8,7 +8,7 @@ const generateSalesReport = async (req, res) => {
     const soldOrders = await OrderModel.find({
       paymentStatus: "success",
     })
-      .populate("eventId", "title")
+      .populate("eventId", "title name date time location")
       .populate("sellerId", "name organizationName email contactNumber")
       .populate("buyerId", "name email contactNumber");
 
@@ -25,22 +25,43 @@ const generateSalesReport = async (req, res) => {
           ticketCode: { $in: ticketCodes },
         });
 
+        const ticketScanMap = {};
+
+        scanRecords.forEach((record) => {
+          if (!ticketScanMap[record.ticketCode]) {
+            ticketScanMap[record.ticketCode] = record.status;
+          } else if (record.status === "used") {
+            ticketScanMap[record.ticketCode] = "used";
+          }
+        });
+
+        const ticketScanDetails = order.ticketCodes.map((ticket) => ({
+          code: ticket.code,
+          status: ticketScanMap[ticket.code] || "not_scanned",
+        }));
+
+        const totalTickets = ticketScanDetails.length;
+        const validCount = ticketScanDetails.filter(
+          (t) => t.status === "valid"
+        ).length;
+        const usedCount = ticketScanDetails.filter(
+          (t) => t.status === "used"
+        ).length;
+
         let scanStatus = "not_scanned";
 
-        if (scanRecords.length > 0) {
-          if (scanRecords.some((r) => r.status === "used")) {
-            scanStatus = "used";
-          } else if (scanRecords.some((r) => r.status === "valid")) {
-            scanStatus = "valid";
-          } else if (scanRecords.some((r) => r.status === "invalid")) {
-            scanStatus = "invalid";
-          }
+        if (usedCount > 0) {
+          scanStatus = "used";
+        } else if (validCount === totalTickets && totalTickets > 0) {
+          scanStatus = "fully_scanned";
+        } else if (validCount > 0) {
+          scanStatus = "partially_scanned";
         }
 
         return {
           ...order.toObject(),
           scanStatus,
-          scanDetails: scanRecords,
+          ticketScanDetails,
         };
       })
     );
@@ -53,7 +74,7 @@ const generateSalesReport = async (req, res) => {
       orders: ordersWithScanStatus,
     });
   } catch (error) {
-    console.error("Error generating report:", error);
+    console.error("Error generating sales report:", error);
     res.status(500).json({
       success: false,
       message: "Failed to generate sales report",
