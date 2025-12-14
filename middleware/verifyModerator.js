@@ -1,32 +1,33 @@
-import jwt from "jsonwebtoken";
-import UserModel from "../models/userModel.js";
-
 const verifyModerator = async (req, res, next) => {
   try {
-    const token = req.headers.authorization?.split(" ")[1];
-    if (!token) {
-      return res.status(401).json({ message: "No token provided" });
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ message: "Authorization token missing" });
     }
+
+    const token = authHeader.split(" ")[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET_TOKEN);
 
-    const user = await UserModel.findById(decoded.id);
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
+    if (decoded.role !== "moderator") {
+      return res.status(403).json({
+        message: "Access denied. Moderator token required.",
+      });
     }
 
-    if (user.role !== "moderator") {
-      return res
-        .status(403)
-        .json({ message: "Access denied. Moderators only." });
+    const user = await UserModel.findById(decoded.id);
+    if (!user || user.role !== "moderator") {
+      return res.status(403).json({
+        message: "Invalid moderator account",
+      });
     }
 
     req.user = user;
     next();
   } catch (error) {
-    console.error(error);
-    res
-      .status(401)
-      .json({ message: "Invalid or expired token", error: error.message });
+    res.status(401).json({
+      message: "Invalid or expired token",
+      error: error.message,
+    });
   }
 };
 

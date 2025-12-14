@@ -70,12 +70,11 @@ const createUser = async (req, res) => {
   }
 };
 
-// Login Route
+// User login functionality
 const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Basic validation
     if (!email || !password) {
       return res.status(400).json({
         success: false,
@@ -92,6 +91,14 @@ const loginUser = async (req, res) => {
       });
     }
 
+    // BLOCK moderator from main website
+    if (user.role === "moderator") {
+      return res.status(403).json({
+        success: false,
+        message: "Moderators are not allowed to login on the main website.",
+      });
+    }
+
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({
@@ -100,7 +107,6 @@ const loginUser = async (req, res) => {
       });
     }
 
-    // Generate JWT token
     const token = createToken({
       id: user._id,
       role: user.role,

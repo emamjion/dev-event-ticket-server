@@ -6,7 +6,7 @@ import UserModel from "../models/userModel.js";
 // function to get user profile
 const getProfile = async (req, res) => {
   try {
-    const userId = req.user.id; // verifyToken middleware use korle req.user.id pabe
+    const userId = req.user.id; 
 
     const user = await UserModel.findById(userId).select("-password");
 

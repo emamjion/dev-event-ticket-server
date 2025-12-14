@@ -37,7 +37,7 @@ const loginModerator = async (req, res) => {
         role: moderator.role,
         email: moderator.email,
       },
-      process.env.JWT_SECRET_TOKEN,
+      process.env.JWT_SECRET_SCANNER,
       { expiresIn: process.env.JWT_EXPIRES_IN }
     );
 
