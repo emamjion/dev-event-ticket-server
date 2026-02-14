@@ -32,6 +32,11 @@ const eventSchema = new mongoose.Schema(
       min: { type: Number, default: 0 },
       max: { type: Number, default: 0 },
     },
+    seatTemplate: {
+      type: String,
+      required: true,
+      enum: ["template1", "template2"],
+    },
 
     contactNumber: {
       type: String,
@@ -63,7 +68,7 @@ const eventSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 const EventModel =

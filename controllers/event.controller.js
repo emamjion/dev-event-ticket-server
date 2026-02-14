@@ -22,7 +22,6 @@ const getSellerId = async (user) => {
   }
 };
 
-
 const createEvent = async (req, res) => {
   try {
     const sellerId = await getSellerId(req.user);
@@ -36,6 +35,7 @@ const createEvent = async (req, res) => {
       contactNumber,
       email,
       price,
+      seatTemplate,
     } = req.body;
 
     if (!req.file) {
@@ -45,7 +45,6 @@ const createEvent = async (req, res) => {
       });
     }
 
-   
     const sydneyDateTime = convertToSydneyTime(date, time);
 
     // Upload image
@@ -76,7 +75,8 @@ const createEvent = async (req, res) => {
       description,
       date,
       time,
-      sydneyDateTime, // stored Sydney time
+      sydneyDateTime,
+      seatTemplate,
       location,
       image: result.secure_url,
       contactNumber,
