@@ -40,7 +40,7 @@ const createUser = async (req, res) => {
 
     // Welcome email + OTP
     const mailOptions = {
-      from: process.env.SENDER_EMAIL,
+      from: `"Events N Tickets" <${process.env.SENDER_EMAIL}>`,
       to: email,
       subject: "Welcome to Events n Tickets - Verify Your Account",
       html: `
@@ -54,7 +54,19 @@ const createUser = async (req, res) => {
       `,
     };
 
-    await transporter.sendMail(mailOptions);
+    try {
+      await transporter.sendMail(mailOptions);
+      transporter.verify(function(error, success) {
+   if (error) {
+        console.log("SMTP verification failed:", error);
+   } else {
+        console.log("SMTP ready to send emails");
+   }
+});
+
+    } catch (mailError) {
+      console.log("Mail error:", mailError.message);
+    }
 
     res.status(201).json({
       success: true,
@@ -234,7 +246,7 @@ const sendResetOtp = async (req, res) => {
     await user.save();
 
     await transporter.sendMail({
-      from: process.env.SENDER_EMAIL,
+      from: `"Events N Tickets" <${process.env.SENDER_EMAIL}>`,
       to: email,
       subject: "🔐 Reset Your Password - Events N Tickets",
       html: `
