@@ -63,7 +63,7 @@ const updateUserRole = async (req, res) => {
     const updatedUser = await UserModel.findByIdAndUpdate(
       id,
       { $set: { role } },
-      { new: true }
+      { new: true },
     );
 
     if (!updatedUser) {
@@ -92,7 +92,7 @@ const updateUserRole = async (req, res) => {
 // Get All Users
 const getAllUsers = async (req, res) => {
   try {
-    const users = await UserModel.find();
+    const users = await UserModel.find().sort({ createdAt: -1 });
     res.status(200).json({
       success: true,
       message: "All users fetched successfully",
@@ -308,41 +308,48 @@ const getPendingSellerRequests = async (req, res) => {
 const approveSellerRequest = async (req, res) => {
   try {
     const { requestId } = req.params;
+
     const request = await SellerRequestModel.findById(requestId);
+
     if (!request) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Request not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Request not found",
+      });
     }
+
     let user = await UserModel.findOne({ email: request.email });
 
     if (!user) {
       try {
         const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash("123456", salt);
+        const hashedPassword = await bcrypt.hash("******", salt);
 
-        // Create new user
         user = await UserModel.create({
           name: request.name,
           email: request.email,
           password: hashedPassword,
           role: "seller",
+          contactNumber: request.contactNumber,
+          address: request.address,
         });
-
-        // console.log("New user created:", user.email);
       } catch (err) {
         console.error("User creation error:", err.message);
-        return res
-          .status(500)
-          .json({ success: false, message: "Failed to create user" });
+        return res.status(500).json({
+          success: false,
+          message: "Failed to create user",
+        });
       }
     } else {
       user.role = "seller";
+      user.contactNumber = request.contactNumber;
+      user.address = request.address;
       await user.save();
-      // console.log("Existing user role updated to seller:", user.email);
     }
 
-    const existingSeller = await SellerModel.findOne({ userId: user._id });
+    const existingSeller = await SellerModel.findOne({
+      userId: user._id,
+    });
 
     if (!existingSeller) {
       await SellerModel.create({
@@ -358,27 +365,32 @@ const approveSellerRequest = async (req, res) => {
       });
 
       console.log("Seller profile created for:", user.email);
-    } else {
-      console.log("Seller profile already exists for:", user.email);
     }
 
-    request.status = "approved";
-    await request.save();
+    await SellerRequestModel.findByIdAndDelete(requestId);
 
+    // Generate token
     const token = jwt.sign(
-      { id: user._id, email: user.email, role: user.role },
+      {
+        id: user._id,
+        email: user.email,
+        role: user.role,
+      },
       process.env.JWT_SECRET_TOKEN,
-      { expiresIn: process.env.JWT_EXPIRES_IN }
+      {
+        expiresIn: process.env.JWT_EXPIRES_IN,
+      },
     );
 
     res.status(200).json({
       success: true,
-      message: "Seller approved & account ready",
+      message: "Seller approved & request removed",
       token,
       user,
     });
   } catch (error) {
     console.error("Approval error:", error.message);
+
     res.status(500).json({
       success: false,
       message: "Approval failed",
@@ -426,7 +438,7 @@ const monitorSellerActivity = async (req, res) => {
     // SellerModel theke seller khuja hocche & tar user info populate hocche
     const seller = await SellerModel.findById(sellerId).populate(
       "userId",
-      "name email"
+      "name email",
     );
     if (!seller) {
       return res.status(404).json({
@@ -647,7 +659,7 @@ const createModerator = async (req, res) => {
 const getAllModerators = async (req, res) => {
   try {
     const moderators = await UserModel.find({ role: "moderator" }).select(
-      "name email contactNumber address profileImg createdAt"
+      "name email contactNumber address profileImg createdAt",
     );
 
     if (!moderators || moderators.length === 0) {
@@ -736,7 +748,7 @@ const updateModerator = async (req, res) => {
     const moderator = await UserModel.findOneAndUpdate(
       { _id: id, role: "moderator" },
       { $set: updateData },
-      { new: true, runValidators: true }
+      { new: true, runValidators: true },
     ).select("-password");
 
     if (!moderator) {
