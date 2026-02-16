@@ -14,6 +14,7 @@ import { getScannedTicketsByModerator } from "../controllers/scanTicket.controll
 import { scanTicket } from "../controllers/ticketScanRecord.controller.js";
 import verifyAdmin from "../middleware/verifyAdmin.js";
 import verifyModerator from "../middleware/verifyModerator.js";
+import verifyToken from "../middleware/verifyToken.js";
 
 const moderatorRouter = express.Router();
 
@@ -23,26 +24,26 @@ moderatorRouter.put(
   "/update-profile",
 
   verifyModerator,
-  updateModeratorProfile
+  updateModeratorProfile,
 );
 
 moderatorRouter.post(
   "/:eventId/create-moderator",
-
+  verifyToken,
   verifyAdmin,
-  createModeratorAndAssignToEvent
+  createModeratorAndAssignToEvent,
 );
 moderatorRouter.delete(
   "/:eventId/removeModerator",
 
   verifyAdmin,
-  removeModeratorFromEvent
+  removeModeratorFromEvent,
 );
 moderatorRouter.get(
   "/:eventId/moderators",
 
   verifyAdmin,
-  getEventModerators
+  getEventModerators,
 );
 
 // moderatorRouter.post("/scan-ticket", verifyToken, verifyModerator, scanTicket);
@@ -53,21 +54,21 @@ moderatorRouter.post("/scan-ticket", verifyModerator, scanTicket);
 moderatorRouter.get(
   "/scanned/:moderatorId",
   verifyModerator,
-  getScannedTicketsByModerator
+  getScannedTicketsByModerator,
 );
 
 moderatorRouter.get(
   "/stats/:moderatorId",
 
   verifyModerator,
-  getTodayStats
+  getTodayStats,
 );
 
 moderatorRouter.get(
   "/recent/:moderatorId",
 
   verifyModerator,
-  getRecentScans
+  getRecentScans,
 );
 
 export default moderatorRouter;
