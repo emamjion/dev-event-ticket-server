@@ -323,7 +323,7 @@ const approveSellerRequest = async (req, res) => {
     if (!user) {
       try {
         const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash("******", salt);
+        const hashedPassword = await bcrypt.hash("123456", salt);
 
         user = await UserModel.create({
           name: request.name,
