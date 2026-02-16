@@ -40,40 +40,6 @@ import UserModel from "../models/userModel.js";
 // };
 
 // function to update seller profile
-const updateSellerProfile = async (req, res) => {
-  try {
-    const userId = req.user.id;
-
-    const updatedData = { ...req.body };
-    const image = req.file;
-    if (image) {
-      const result = await cloudinary.uploader.upload(image.path);
-      updatedData.profileImg = result.secure_url;
-    }
-
-    const updated = await SellerModel.findOneAndUpdate(
-      { userId },
-      { $set: updatedData },
-      { new: true }
-    );
-
-    if (!updated) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Seller profile not found" });
-    }
-
-    res.status(200).json({
-      success: true,
-      message: "Seller profile updated",
-      profile: updated,
-    });
-  } catch (error) {
-    res
-      .status(500)
-      .json({ success: false, message: "Update failed", error: error.message });
-  }
-};
 
 // function to get seller profile - self
 // const getMySellerProfile = async (req, res) => {
@@ -104,13 +70,54 @@ const updateSellerProfile = async (req, res) => {
 //   }
 // };
 
+const updateSellerProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const updatedData = { ...req.body };
+
+    if (req.file && req.file.path) {
+      const result = await cloudinary.uploader.upload(req.file.path);
+
+      updatedData.profileImg = result.secure_url;
+    }
+
+    const updated = await SellerModel.findOneAndUpdate(
+      { userId },
+      { $set: updatedData },
+      { new: true },
+    );
+
+    if (!updated) {
+      return res.status(404).json({
+        success: false,
+        message: "Seller profile not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Seller profile updated",
+      profile: updated,
+    });
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      success: false,
+      message: "Update failed",
+      error: error.message,
+    });
+  }
+};
+
 const getMySellerProfile = async (req, res) => {
   try {
     const userId = new mongoose.Types.ObjectId(req.user.id); // Convert string to ObjectId
 
     const profile = await SellerModel.findOne({ userId }).populate(
       "userId",
-      "name"
+      "name",
     );
 
     console.log("profile", profile);
@@ -140,7 +147,7 @@ const getSellerProfileById = async (req, res) => {
 
     const profile = await SellerModel.findOne({ userId }).populate(
       "userId",
-      "name email"
+      "name email",
     );
 
     if (!profile) {
