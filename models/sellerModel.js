@@ -45,8 +45,7 @@ const sellerSchema = new mongoose.Schema(
     },
     profileImg: {
       type: String,
-      default:
-        "https://res.cloudinary.com/demo/image/upload/v1700000000/default-avatar.png",
+      default: "",
     },
     isVerified: {
       type: Boolean,
@@ -65,7 +64,7 @@ const sellerSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 const SellerModel =

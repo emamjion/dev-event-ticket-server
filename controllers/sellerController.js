@@ -76,8 +76,16 @@ const updateSellerProfile = async (req, res) => {
 
     const updatedData = { ...req.body };
 
-    if (req.file && req.file.path) {
-      const result = await cloudinary.uploader.upload(req.file.path);
+    if (req.file) {
+      const file = req.file;
+
+      const base64Image = `data:${file.mimetype};base64,${file.buffer.toString(
+        "base64",
+      )}`;
+
+      const result = await cloudinary.uploader.upload(base64Image, {
+        folder: "profile-images",
+      });
 
       updatedData.profileImg = result.secure_url;
     }
