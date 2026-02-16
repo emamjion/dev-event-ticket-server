@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import SellerModel from "./sellerModel.js";
 
 const userSchema = new mongoose.Schema(
   {
@@ -77,8 +78,18 @@ const userSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
+
+userSchema.pre("findOneAndDelete", async function (next) {
+  const user = await this.model.findOne(this.getFilter());
+
+  if (user.role === "seller") {
+    await SellerModel.findOneAndDelete({ userId: user._id });
+  }
+
+  next();
+});
 
 const UserModel = mongoose.models.User || mongoose.model("User", userSchema);
 export default UserModel;
