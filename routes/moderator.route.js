@@ -35,13 +35,13 @@ moderatorRouter.post(
 );
 moderatorRouter.delete(
   "/:eventId/removeModerator",
-
+  verifyToken,
   verifyAdmin,
   removeModeratorFromEvent,
 );
 moderatorRouter.get(
   "/:eventId/moderators",
-
+  verifyToken,
   verifyAdmin,
   getEventModerators,
 );
