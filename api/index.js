@@ -20,6 +20,7 @@ import withdrawalRouter from "../routes/withdrawal.route.js";
 // import jwtRouter from "../routes/jwtRoute.js";
 import bannerRouter from "../routes/banner.route.js";
 import moderatorRouter from "../routes/moderator.route.js";
+import newsletterRouter from "../routes/newsletter.route.js";
 import "../utils/cron/bookingCleanup.js";
 
 const app = express();
@@ -49,6 +50,7 @@ app.use("/api/v1/blogs", blogRouter);
 app.use("/api/v1/tickets", ticketRouter);
 app.use("/api/v1/banner", bannerRouter);
 app.use("/api/v1/moderator", moderatorRouter);
+app.use("/api/v1/newsletter", newsletterRouter);
 
 // Root route
 app.get("/", (req, res) => {
