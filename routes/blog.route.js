@@ -13,19 +13,19 @@ import verifyToken from "../middleware/verifyToken.js";
 const blogRouter = express.Router();
 blogRouter.post(
   "/create-blog",
-  upload.single("featureImage"),
+  upload.single("image"),
   verifyToken,
   verifyAdmin,
-  createBlog
+  createBlog,
 );
 blogRouter.get("/blogs", getAllBlogs);
 blogRouter.get("/blogs/:id", getBlogById);
 blogRouter.put(
   "/update/:id",
-  upload.single("featureImage"),
+  upload.single("image"),
   verifyToken,
   verifyAdmin,
-  updateBlog
+  updateBlog,
 );
 blogRouter.delete("/delete/:id", verifyToken, verifyAdmin, deleteBlog);
 
