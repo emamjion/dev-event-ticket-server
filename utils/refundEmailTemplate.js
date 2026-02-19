@@ -24,7 +24,7 @@ export const refundCancelTemplate = ({
 
       <!-- Header -->
       <div style="
-       background:#ef4444;
+       background:#ff6900;
         color:white;
         padding:20px;
         text-align:center;
@@ -49,7 +49,10 @@ export const refundCancelTemplate = ({
           border-radius:8px;
           margin:15px 0;
         ">
-          <p><strong>Seat:</strong> ${seat.section} - Row ${seat.row} - Seat ${seat.seatNumber}</p>
+          <p>
+            <strong>Seat:</strong>
+            ${seat?.section || "-"} - Row ${seat?.row || "-"} - Seat ${seat?.seatNumber || "-"}
+            </p>
 
           ${
             isFree

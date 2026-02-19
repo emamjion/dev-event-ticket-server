@@ -138,7 +138,7 @@ export const unsubscribeTemplate = (email) => {
     <div style="background:#f4f6f9;padding:40px 0;font-family:Arial,sans-serif;">
       <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 8px 20px rgba(0,0,0,0.08);">
         
-        <div style="background:linear-gradient(135deg,#ef4444,#f87171);padding:30px;text-align:center;color:#fff;">
+        <div style="background:#ff6900;padding:30px;text-align:center;color:#fff;">
           <h1 style="margin:0;font-size:24px;">We're Sorry to See You Go 😔</h1>
         </div>
 
@@ -153,7 +153,7 @@ export const unsubscribeTemplate = (email) => {
 
           <div style="text-align:center;margin:30px 0;">
             <a href="https://eventsntickets.com.au"
-              style="background:#ef4444;color:#fff;padding:12px 25px;
+              style="background:#ff6900;color:#fff;padding:12px 25px;
               text-decoration:none;border-radius:6px;
               font-weight:bold;font-size:14px;display:inline-block;">
               Subscribe Again

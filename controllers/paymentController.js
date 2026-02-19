@@ -6,8 +6,8 @@ import EventModel from "../models/eventModel.js";
 import OrderModel from "../models/orderModel.js";
 import generateOrderTicketPDF from "../utils/generateOrderTicketPDF.js";
 import { generateTicketCode } from "../utils/generateTicketCode.js";
-import sendTicketEmail from "../utils/sendTicketEmail.js";
 import { refundCancelTemplate } from "../utils/refundEmailTemplate.js";
+import sendTicketEmail from "../utils/sendTicketEmail.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -1086,19 +1086,23 @@ const refundAndCancel = async (req, res) => {
         await event.save();
       }
 
-      // ✅ SEND EMAIL (FREE)
+      // SEND EMAIL (FREE)
       if (buyerEmail) {
         const mail = refundCancelTemplate({
           customerName: buyerName,
           customerEmail: buyerEmail,
           eventName,
-          seat: `${section}-${row}-${seatNumber}`,
+          seat: {
+            section,
+            row,
+            seatNumber,
+          },
           refundAmount: 0,
           isFree: true,
         });
 
         await transporter.sendMail({
-          from: `"Event Platform" <${process.env.SENDER_EMAIL}>`,
+          from: `"Events N Tickets Platform" <${process.env.SENDER_EMAIL}>`,
           to: buyerEmail,
           subject: mail.subject,
           html: mail.html,
@@ -1207,19 +1211,23 @@ const refundAndCancel = async (req, res) => {
       await event.save();
     }
 
-    // ✅ SEND EMAIL (PAID REFUND)
+    // SEND EMAIL (PAID REFUND)
     if (buyerEmail) {
       const mail = refundCancelTemplate({
         customerName: buyerName,
         customerEmail: buyerEmail,
         eventName,
-        seat: `${section}-${row}-${seatNumber}`,
+        seat: {
+          section,
+          row,
+          seatNumber,
+        },
         refundAmount: refundAmount / 100,
         isFree: false,
       });
 
       await transporter.sendMail({
-        from: `"Event Platform" <${process.env.SENDER_EMAIL}>`,
+        from: `"Events N Tickets Platform" <${process.env.SENDER_EMAIL}>`,
         to: buyerEmail,
         subject: mail.subject,
         html: mail.html,
