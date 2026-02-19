@@ -327,7 +327,7 @@ const confirmPayment = async (req, res) => {
 
     // STEP 1: Find booking
     let booking = await BookingModel.findOne({ paymentIntentId }).populate(
-      "buyerId"
+      "buyerId",
     );
 
     if (!booking) {
@@ -853,7 +853,7 @@ const cancelBooking = async (req, res) => {
       (seat) =>
         seat.section === section &&
         seat.row === row &&
-        seat.seatNumber === seatNumber
+        seat.seatNumber === seatNumber,
     );
 
     if (seatIndex === -1) {
@@ -981,17 +981,19 @@ const refundAndCancel = async (req, res) => {
     const { section, row, seatNumber } = seatToCancel;
 
     const order = await OrderModel.findById(orderId);
+
     if (!order) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Order not found." });
+      return res.status(404).json({
+        success: false,
+        message: "Order not found.",
+      });
     }
 
     const seatIndex = order.seats.findIndex(
       (seat) =>
         seat.section === section &&
         seat.row === row &&
-        seat.seatNumber === seatNumber
+        seat.seatNumber === seatNumber,
     );
 
     if (seatIndex === -1) {
@@ -1001,17 +1003,104 @@ const refundAndCancel = async (req, res) => {
       });
     }
 
-    if (!order.paymentIntentId) {
-      return res.status(400).json({
-        success: false,
-        message: "No payment intent found for refund.",
+    // =====================================================
+    // ✅ FIX: FREE ORDER → SKIP STRIPE REFUND
+    // =====================================================
+
+    if (!order.paymentIntentId || order.paymentIntentId.startsWith("FREE_")) {
+      // Remove seat from order
+      order.seats.splice(seatIndex, 1);
+
+      order.totalAmount = Math.max(
+        0,
+        order.totalAmount - (seatToCancel.price || 0),
+      );
+
+      order.quantity = order.seats.length;
+
+      let orderDeleted = false;
+
+      if (order.seats.length === 0) {
+        await OrderModel.findByIdAndDelete(order._id);
+        orderDeleted = true;
+      } else {
+        await order.save();
+      }
+
+      // Remove from booking
+      await BookingModel.updateOne(
+        { _id: order.bookingId },
+        {
+          $pull: {
+            seats: {
+              section,
+              row,
+              seatNumber,
+            },
+          },
+        },
+      );
+
+      const updatedBooking = await BookingModel.findById(order.bookingId);
+
+      let bookingDeleted = false;
+
+      if (updatedBooking && updatedBooking.seats.length === 0) {
+        await BookingModel.findByIdAndDelete(order.bookingId);
+        bookingDeleted = true;
+      }
+
+      // Update event seats
+      const event = await EventModel.findById(order.eventId);
+
+      if (event) {
+        event.seats = event.seats.filter(
+          (s) =>
+            !(
+              s.section === section &&
+              s.row === row &&
+              s.seatNumber === seatNumber
+            ),
+        );
+
+        event.soldTickets = event.soldTickets.filter(
+          (s) =>
+            !(
+              s.section === section &&
+              s.row === row &&
+              s.seatNumber === seatNumber
+            ),
+        );
+
+        event.ticketSold = Math.max(0, event.ticketSold - 1);
+
+        event.ticketsAvailable += 1;
+
+        await event.save();
+      }
+
+      return res.status(200).json({
+        success: true,
+        message:
+          "Seat cancelled successfully (Free ticket - No refund needed)." +
+          (orderDeleted ? " Order deleted." : "") +
+          (bookingDeleted ? " Booking deleted." : ""),
+
+        updatedOrder: orderDeleted ? null : order,
+        deletedOrderId: orderDeleted ? order._id : null,
+        bookingDeleted,
       });
     }
 
+    // =====================================================
+    // 💳 PAID ORDER → PROCESS REFUND
+    // =====================================================
+
     let paymentIntent;
+
     try {
       paymentIntent = await stripe.paymentIntents.retrieve(
-        order.paymentIntentId
+        order.paymentIntentId,
       );
     } catch (err) {
       return res.status(400).json({
@@ -1022,6 +1111,7 @@ const refundAndCancel = async (req, res) => {
     }
 
     const booking = await BookingModel.findById(order.bookingId);
+
     if (!booking) {
       return res.status(404).json({
         success: false,
@@ -1030,16 +1120,15 @@ const refundAndCancel = async (req, res) => {
     }
 
     const totalPaid = booking.finalAmount || booking.totalAmount;
+
     const totalSeats = order.seats.length;
 
-    const refundAmount = Math.floor((totalPaid / totalSeats) * 100); // in cents
+    const refundAmount = Math.floor((totalPaid / totalSeats) * 100);
 
     if (refundAmount > paymentIntent.amount) {
       return res.status(400).json({
         success: false,
-        message: `Refund amount ($${
-          refundAmount / 100
-        }) exceeds paid amount ($${paymentIntent.amount / 100}).`,
+        message: "Refund amount exceeds paid amount.",
       });
     }
 
@@ -1048,14 +1137,18 @@ const refundAndCancel = async (req, res) => {
       amount: refundAmount,
     });
 
+    // Remove seat
     order.seats.splice(seatIndex, 1);
+
     order.totalAmount = Math.max(
       0,
-      order.totalAmount - (seatToCancel.price || 0)
+      order.totalAmount - (seatToCancel.price || 0),
     );
+
     order.quantity = order.seats.length;
 
     let orderDeleted = false;
+
     if (order.seats.length === 0) {
       await OrderModel.findByIdAndDelete(order._id);
       orderDeleted = true;
@@ -1063,27 +1156,32 @@ const refundAndCancel = async (req, res) => {
       await order.save();
     }
 
+    // Remove from booking
     await BookingModel.updateOne(
       { _id: order.bookingId },
       {
         $pull: {
           seats: {
-            section: section,
-            row: row,
-            seatNumber: seatNumber,
+            section,
+            row,
+            seatNumber,
           },
         },
-      }
+      },
     );
 
     const updatedBooking = await BookingModel.findById(order.bookingId);
+
     let bookingDeleted = false;
+
     if (updatedBooking && updatedBooking.seats.length === 0) {
       await BookingModel.findByIdAndDelete(order.bookingId);
       bookingDeleted = true;
     }
 
+    // Update event
     const event = await EventModel.findById(order.eventId);
+
     if (event) {
       event.seats = event.seats.filter(
         (s) =>
@@ -1091,26 +1189,32 @@ const refundAndCancel = async (req, res) => {
             s.section === section &&
             s.row === row &&
             s.seatNumber === seatNumber
-          )
+          ),
       );
+
       event.soldTickets = event.soldTickets.filter(
         (s) =>
           !(
             s.section === section &&
             s.row === row &&
             s.seatNumber === seatNumber
-          )
+          ),
       );
+
       event.ticketSold = Math.max(0, event.ticketSold - 1);
+
       event.ticketsAvailable += 1;
+
       await event.save();
     }
 
     return res.status(200).json({
       success: true,
-      message: `Seat cancelled and refund successful.${
-        orderDeleted ? " Order deleted." : ""
-      }${bookingDeleted ? " Booking deleted." : ""}`,
+      message:
+        "Seat cancelled and refund successful." +
+        (orderDeleted ? " Order deleted." : "") +
+        (bookingDeleted ? " Booking deleted." : ""),
+
       refund,
       updatedOrder: orderDeleted ? null : order,
       deletedOrderId: orderDeleted ? order._id : null,
@@ -1118,6 +1222,7 @@ const refundAndCancel = async (req, res) => {
     });
   } catch (error) {
     console.error("Cancel Seat Error:", error);
+
     return res.status(500).json({
       success: false,
       message: "Internal server error.",
