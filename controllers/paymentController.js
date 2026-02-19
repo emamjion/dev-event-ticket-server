@@ -1097,7 +1097,7 @@ const refundAndCancel = async (req, res) => {
         });
 
         await transporter.sendMail({
-          from: `"Event Platform" <${process.env.SMTP_USER}>`,
+          from: `"Event Platform" <${process.env.SENDER_EMAIL}>`,
           to: buyerEmail,
           subject: mail.subject,
           html: mail.html,
@@ -1218,7 +1218,7 @@ const refundAndCancel = async (req, res) => {
       });
 
       await transporter.sendMail({
-        from: `"Event Platform" <${process.env.SMTP_USER}>`,
+        from: `"Event Platform" <${process.env.SENDER_EMAIL}>`,
         to: buyerEmail,
         subject: mail.subject,
         html: mail.html,
