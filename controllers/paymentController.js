@@ -7,6 +7,7 @@ import OrderModel from "../models/orderModel.js";
 import generateOrderTicketPDF from "../utils/generateOrderTicketPDF.js";
 import { generateTicketCode } from "../utils/generateTicketCode.js";
 import sendTicketEmail from "../utils/sendTicketEmail.js";
+import { refundCancelTemplate } from "../utils/refundEmailTemplate.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
