@@ -117,10 +117,24 @@ const createPayment = async (req, res) => {
       return res.status(404).json({ message: "Event not found." });
     }
 
-    const amountToPay =
+    // const amountToPay =
+    //   booking.finalAmount !== undefined
+    //     ? booking.finalAmount
+    //     : booking.totalAmount;
+
+    let amountToPay =
       booking.finalAmount !== undefined
         ? booking.finalAmount
         : booking.totalAmount;
+
+    // Stripe requires minimum $0.50 AUD for PaymentIntents
+    const STRIPE_MINIMUM_AUD = 0.5;
+    if (amountToPay > 0 && amountToPay < STRIPE_MINIMUM_AUD) {
+      console.log(
+        `💡 Amount $${amountToPay} below Stripe minimum, rounding up to $${STRIPE_MINIMUM_AUD}`,
+      );
+      amountToPay = STRIPE_MINIMUM_AUD;
+    }
 
     console.log("💰 Payment amount calculation:", {
       bookingId: booking._id,
