@@ -20,29 +20,29 @@ bookingRouter.put(
   "/cancel-reserved",
   verifyToken,
   verifySellerOrAdmin,
-  cancelReservedBooking
+  cancelReservedBooking,
 );
 bookingRouter.post(
   "/reserve-seats",
   verifyToken,
   verifySellerOrAdmin,
-  reserveSeatsByStaff
+  reserveSeatsByStaff,
 );
-bookingRouter.get("/booked-seats/:eventId", verifyToken, getSeatsByEvent);
+bookingRouter.get("/booked-seats/:eventId", getSeatsByEvent);
 bookingRouter.post("/check-seats", verifyToken, checkSeatsAvailability);
 
 bookingRouter.post(
   "/optional-info",
   verifyToken,
   verifySellerOrAdmin,
-  saveOptionalInfo
+  saveOptionalInfo,
 );
 
 // Get session start time of a booking
 bookingRouter.get(
   "/booking-session/:bookingId",
   verifyToken,
-  getBookingSessionTime
+  getBookingSessionTime,
 );
 
 export default bookingRouter;
