@@ -5,193 +5,236 @@ import PDFDocument from "pdfkit";
 
 const generateOrderTicketPDF = async (order, event) => {
   return new Promise(async (resolve, reject) => {
-    const doc = new PDFDocument({ margin: 0 });
-    const buffers = [];
-    doc.on("data", buffers.push.bind(buffers));
-    doc.on("end", () => resolve(Buffer.concat(buffers)));
-    doc.on("error", reject);
+    try {
+      const doc = new PDFDocument({
+        size: "A4",
+        margin: 0,
+      });
 
-    const pageWidth = doc.page.width;
-    const margin = 20;
-    const contentWidth = pageWidth - margin * 2;
-    const ticketHeight = 600;
+      let buffers = [];
+      doc.on("data", buffers.push.bind(buffers));
+      doc.on("end", () => resolve(Buffer.concat(buffers)));
 
-    // ✅ Loop through ALL tickets (QR + Seat mapping)
-    for (let i = 0; i < order.ticketCodes.length; i++) {
-      const ticket = order.ticketCodes[i];
-      const seat = order.seats[i]; // 👉 REAL seat mapping HERE
+      const pageWidth = doc.page.width;
+      const pageHeight = doc.page.height;
 
-      const section = seat?.section || "N/A";
-      const row = seat?.row || "N/A";
-      const seatNumber = seat?.seatNumber || "N/A";
-      const ticketCode = ticket?.code || "UNKNOWN";
+      const containerWidth = pageWidth - 100;
+      const containerX = 50;
+      const containerY = 60;
+      const containerHeight = 680;
 
-      // Generate QR
-      let qrBuffer = null;
-      try {
-        qrBuffer = await bwipjs.toBuffer({
+      const totalTickets = order.ticketCodes.length;
+
+      for (let i = 0; i < totalTickets; i++) {
+        const ticket = order.ticketCodes[i];
+        const seat = order.seats[i];
+
+        if (i > 0) doc.addPage();
+
+        // Background
+        doc.rect(0, 0, pageWidth, pageHeight).fill("#f2f2f2");
+
+        // Outer white card
+        doc
+          .roundedRect(
+            containerX,
+            containerY,
+            containerWidth,
+            containerHeight,
+            10
+          )
+          .fill("#ffffff");
+
+        // HEADER ORANGE (rounded top)
+        const headerHeight = 80;
+        doc
+          .fillColor("#f36f21")
+          .roundedRect(containerX, containerY, containerWidth, headerHeight, 10)
+          .fill();
+
+        // LOGO
+        const logoPath = path.resolve("public/events-logo.png");
+        if (fs.existsSync(logoPath)) {
+          doc.image(logoPath, containerX + 20, containerY + 12, {
+            width: 55,
+            height: 55,
+          });
+        }
+
+        // Title center
+        doc
+          .fillColor("#ffffff")
+          .font("Helvetica-Bold")
+          .fontSize(20)
+          .text(event.title, containerX, containerY + 25, {
+            width: containerWidth,
+            align: "center",
+          });
+
+        // Right badge
+        doc
+          .fillColor("#d95f13")
+          .roundedRect(
+            containerX + containerWidth - 120,
+            containerY + 20,
+            90,
+            35,
+            6
+          )
+          .fill();
+
+        doc
+          .fillColor("#ffffff")
+          .fontSize(11)
+          .font("Helvetica-Bold")
+          .text(
+            `${i + 1} TICKET`,
+            containerX + containerWidth - 120 + 17,
+            containerY + 28
+          );
+
+        // Orange thin bar under header
+        doc
+          .rect(containerX, containerY + headerHeight - 2, containerWidth, 3)
+          .fill("#f36f21");
+
+        // CONTENT AREA -------------------------------------------------
+
+        const leftX = containerX + 30;
+        const rightX = containerX + containerWidth * 0.56;
+        let curY = containerY + headerHeight + 25;
+
+        // --- LEFT COLUMN ---
+        doc.fillColor("#e05829").font("Helvetica-Bold").fontSize(14);
+        doc.text("EVENT INFORMATION", leftX, curY);
+        curY += 30;
+
+        doc.fillColor("#222").fontSize(11).font("Helvetica");
+        doc.text(`Date: ${event.date}`, leftX, curY);
+        curY += 16;
+        doc.text(`Time: ${event.time}`, leftX, curY);
+        curY += 16;
+        doc.text(`Location: ${event.location}`, leftX, curY);
+        curY += 35;
+
+        doc.fillColor("#e05829").font("Helvetica-Bold").fontSize(14);
+        doc.text("TICKET HOLDER", leftX, curY);
+        curY += 30;
+
+        doc.fillColor("#222").fontSize(11).font("Helvetica");
+        doc.text(`Name: ${order.buyerId.name}`, leftX, curY);
+        curY += 16;
+        doc.text(`Email: ${order.buyerId.email}`, leftX, curY);
+        curY += 35;
+
+        doc.fillColor("#e05829").font("Helvetica-Bold").fontSize(14);
+        doc.text("SEAT ASSIGNMENT", leftX, curY);
+        curY += 30;
+
+        doc.fillColor("#222").fontSize(11).font("Helvetica");
+        doc.text(`Seat: ${seat.section} ${seat.seatNumber}`, leftX, curY);
+        curY += 16;
+        doc.text(`Section: ${seat.section}`, leftX, curY);
+        curY += 16;
+        doc.text(`Row: ${seat.row}`, leftX, curY);
+        curY += 16;
+        doc.text(`Seat Number: ${seat.seatNumber}`, leftX, curY);
+        curY += 35;
+
+        doc.fillColor("#e05829").font("Helvetica-Bold").fontSize(14);
+        doc.text("ORDER DETAILS", leftX, curY);
+        curY += 30;
+
+        doc.fillColor("#222").fontSize(11).font("Helvetica");
+        doc.text(`Order ID: ${order._id}`, leftX, curY);
+        curY += 16;
+        doc.text(`Booking ID: ${order.bookingId}`, leftX, curY);
+        curY += 16;
+        doc.text(
+          `Purchased: ${new Date(order.createdAt).toLocaleDateString()}`,
+          leftX,
+          curY
+        );
+
+        // Vertical Divider
+        doc
+          .strokeColor("#eaeaea")
+          .lineWidth(1)
+          .moveTo(rightX - 20, containerY + headerHeight + 15)
+          .lineTo(rightX - 20, containerY + containerHeight - 90)
+          .stroke();
+
+        // RIGHT COLUMN -------------------------------------------------
+
+        let rightY = containerY + headerHeight + 25;
+
+        // PAYMENT
+        doc.fillColor("#e05829").font("Helvetica-Bold").fontSize(14);
+        doc.text("PAYMENT", rightX, rightY);
+        rightY += 25;
+
+        doc.fillColor("#f36f21").fontSize(26).font("Helvetica-Bold");
+        doc.text(order.total.toFixed(2), rightX, rightY);
+        rightY += 50;
+
+        // VALIDATION
+        doc.fillColor("#e05829").font("Helvetica-Bold").fontSize(14);
+        doc.text("VALIDATION", rightX, rightY);
+        rightY += 20;
+
+        doc.fillColor("#555").fontSize(10).font("Helvetica-Bold");
+        doc.text("QR CODE", rightX, rightY);
+        rightY += 15;
+
+        const qrBoxSize = 160;
+
+        // QR BOX BACKGROUND
+        doc
+          .fillColor("#ffffff")
+          .rect(rightX, rightY, qrBoxSize, qrBoxSize)
+          .fill()
+          .strokeColor("#ddd")
+          .lineWidth(1)
+          .stroke();
+
+        // QR GENERATE
+        let qrBuffer = await bwipjs.toBuffer({
           bcid: "qrcode",
-          text: String(ticketCode),
+          text: ticket.code,
           scale: 5,
           includetext: false,
         });
-      } catch (e) {
-        console.log("QR ERROR:", e);
-      }
 
-      if (i > 0) doc.addPage();
-
-      // Background
-      doc.rect(0, 0, pageWidth, doc.page.height).fill("#f7fafc");
-
-      // Ticket container
-      doc.fillColor("#ffffff");
-      doc.roundedRect(margin, margin, contentWidth, ticketHeight, 8).fill();
-      doc.lineWidth(1.5).strokeColor("#e5e7eb");
-      doc.roundedRect(margin, margin, contentWidth, ticketHeight, 8).stroke();
-
-      // Header area
-      const headerHeight = 80;
-      doc.fillColor("#6c757d");
-      doc.roundedRect(margin, margin, contentWidth, headerHeight, 8).fill();
-
-      // Logo
-      const logoPath = path.resolve("public/events-logo.png");
-      if (fs.existsSync(logoPath)) {
-        doc.image(logoPath, margin + 30, margin + 10, {
-          width: 60,
-          height: 60,
-        });
-      }
-
-      // Ticket number badge
-      const badgeX = margin + contentWidth - 180;
-      doc
-        .fillColor("#495057")
-        .roundedRect(badgeX, margin + 25, 120, 30, 5)
-        .fill();
-
-      doc
-        .fillColor("#ffffff")
-        .font("Helvetica-Bold")
-        .fontSize(10)
-        .text(
-          `TICKET ${i + 1} OF ${order.ticketCodes.length}`,
-          badgeX + 15,
-          margin + 33
-        );
-
-      // MAIN CONTENT
-      const contentY = margin + headerHeight + 30;
-      const leftColX = margin + 25;
-      const rightColX = margin + contentWidth * 0.55;
-
-      let currentY = contentY;
-
-      // EVENT info
-      doc.fillColor("#e05829").fontSize(14).font("Helvetica-Bold");
-      doc.text("EVENT INFORMATION", leftColX, currentY);
-      currentY += 30;
-
-      doc.fillColor("#2d3748").fontSize(13).font("Helvetica-Bold");
-      doc.text(`Title: ${event?.title || "Event"}`, leftColX, currentY);
-      currentY += 20;
-
-      doc.fontSize(11).font("Helvetica");
-      doc.text(`Date: ${event?.date || "TBA"}`, leftColX, currentY);
-      currentY += 16;
-      doc.text(`Time: ${event?.time || "TBA"}`, leftColX, currentY);
-      currentY += 16;
-      doc.text(`Location: ${event?.location || "TBA"}`, leftColX, currentY);
-      currentY += 40;
-
-      // HOLDER info
-      doc.fillColor("#e05829").fontSize(14).font("Helvetica-Bold");
-      doc.text("TICKET HOLDER", leftColX, currentY);
-      currentY += 30;
-
-      doc.fillColor("#2d3748").fontSize(11);
-      doc.text(
-        `Name: ${order?.buyerId?.name || "Guest User"}`,
-        leftColX,
-        currentY
-      );
-      currentY += 16;
-
-      doc.text(
-        `Email: ${order?.buyerId?.email || "No Email"}`,
-        leftColX,
-        currentY
-      );
-      currentY += 40;
-
-      // SEAT info
-      doc.fillColor("#e05829").fontSize(14).font("Helvetica-Bold");
-      doc.text("SEAT ASSIGNMENT", leftColX, currentY);
-      currentY += 30;
-
-      doc.fillColor("#2d3748").fontSize(11);
-      doc.text(
-        `Seat: Section ${section} Row ${row} Seat ${seatNumber}`,
-        leftColX,
-        currentY
-      );
-      currentY += 40;
-
-      // ORDER DETAILS
-      doc.fillColor("#e05829").fontSize(14).font("Helvetica-Bold");
-      doc.text("ORDER DETAILS", leftColX, currentY);
-      currentY += 30;
-
-      doc.fillColor("#2d3748");
-      doc.text(
-        `Order ID: ${String(order?._id).substring(0, 16)}`,
-        leftColX,
-        currentY
-      );
-      currentY += 16;
-
-      doc.text(
-        `Purchased: ${new Date(order?.createdAt).toLocaleDateString()}`,
-        leftColX,
-        currentY
-      );
-
-      // QR AREA
-      let qrY = contentY;
-
-      doc.fillColor("#e05829").fontSize(14).font("Helvetica-Bold");
-      doc.text("VALIDATION", rightColX, qrY);
-      qrY += 40;
-
-      doc.fillColor("#6c757d").fontSize(10).font("Helvetica-Bold");
-      doc.text("SCAN QR CODE", rightColX, qrY);
-      qrY += 20;
-
-      const qrBoxSize = 150;
-      doc
-        .fillColor("#fafafa")
-        .rect(rightColX, qrY, qrBoxSize, qrBoxSize)
-        .fill();
-      doc
-        .strokeColor("#e5e7eb")
-        .rect(rightColX, qrY, qrBoxSize, qrBoxSize)
-        .stroke();
-
-      if (qrBuffer) {
-        doc.image(qrBuffer, rightColX + 10, qrY + 10, {
+        doc.image(qrBuffer, rightX + 10, rightY + 10, {
           width: qrBoxSize - 20,
           height: qrBoxSize - 20,
         });
+
+        rightY += qrBoxSize + 5;
+
+        doc.fontSize(10).fillColor("#222");
+        doc.text(ticket.code, rightX + 10, rightY);
+
+        // FOOTER --------------------------------------------------
+
+        const footerY = containerY + containerHeight - 60;
+
+        // orange line
+        doc.rect(containerX, footerY, containerWidth, 3).fill("#f36f21");
+
+        doc.fillColor("#777").fontSize(10).font("Helvetica");
+        doc.text(
+          "This ticket is valid for entry to the specified event.\nPresent this ticket along with valid ID at the venue entrance.",
+          containerX,
+          footerY + 10,
+          { width: containerWidth, align: "center" }
+        );
       }
 
-      qrY += qrBoxSize + 10;
-
-      doc.fillColor("#2d3748").fontSize(10);
-      doc.text(ticketCode, rightColX + 10, qrY);
+      doc.end();
+    } catch (err) {
+      reject(err);
     }
-
-    doc.end();
   });
 };
 
